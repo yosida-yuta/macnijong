@@ -1,3 +1,9 @@
+
+from flask import Flask, render_template, request, session, redirect, url_for
+from mahjong.hand_calculating.hand import HandCalculator
+from mahjong.tile import TilesConverter
+from mahjong.hand_calculating.hand_config import HandConfig
+
 from werkzeug.utils import secure_filename
 import os
 import os
@@ -764,33 +770,47 @@ def test_ai():
     except Exception as e:
         return str(e)
 
+from flask import Flask, render_template, request, session, redirect, url_for
+from mahjong.hand_calculating.hand import HandCalculator
+from mahjong.tile import TilesConverter
+from mahjong.hand_calculating.hand_config import HandConfig
+
+# 既に Flask アプリ作成済みのものを利用
+# app = Flask(__name__)
+# secret_key設定済みのはずです
+
 @app.route("/score", methods=["GET", "POST"])
 def score():
     result = None
 
     if request.method == "POST":
-        # アップロードされた画像
-        file = request.files.get("image")
+        # 画像保存
+        image = request.files.get("image")
+        if image:
+            image.save("static/uploads/" + image.filename)
 
-        if file:
-            # アップロードフォルダがなければ作る
-            upload_dir = "uploads"
-            os.makedirs(upload_dir, exist_ok=True)
+        # 中間発表用 仮判定（あとで Roboflow に置き換え）
+        calculator = HandCalculator()
+        tiles = TilesConverter.string_to_136_array(
+            man='234',
+            pin='567',
+            sou='678',
+            honors='5555'
+        )
+        win_tile = TilesConverter.string_to_136_array(sou='6')[0]
 
-            # 保存
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(upload_dir, filename)
-            file.save(filepath)
+        config = HandConfig(is_tsumo=True)
+        calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
 
-            # 仮判定（モック）
-            # 中間発表向け：あとで mahjong + Roboflow に差し替え
-            result = {
-                "yaku": "リーチ・ツモ・タンヤオ",
-                "han": 3,
-                "cost": 3900
-            }
+        result = {
+            "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
+            "han": calc.han or "なし",
+            "cost": calc.cost["main"] if calc.cost else "計算できず",
+        }
 
-    return render_template("score.html", result=result)
+    return render_template("score.html",
+                           result=result,
+                           nickname=session.get("nickname", ""))
 
 
 if __name__ == '__main__':
