@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <title>点数計算 - Macni雀</title>
+</head>
+<body>
+    <h1>麻雀の点数を計算</h1>
+
+    /score" enctype="multipart/form-data">
+        <label>手牌の画像をアップロード:</label><br>
+        <input type="file" name="image" accept="image/*" required><br><br>
+        <button type="submit">解析する</button>
+    </form>
+
+    {% if result %}
+    <h2>結果</h2>
+    <p>🀄 役: {{ result.yaku }}</p>
+    <p>🎯 翻数: {{ result.han }}</p>
+    <p>💰 点数: {{ result.cost }} 点</p>
+    {% endif %}
+</body>
+</html>

@@ -1,3 +1,5 @@
+from werkzeug.utils import secure_filename
+import os
 import os
 from flask import Flask, jsonify, render_template, request, redirect, url_for, session, flash
 from dotenv import load_dotenv
@@ -761,6 +763,34 @@ def test_ai():
 
     except Exception as e:
         return str(e)
+
+@app.route("/score", methods=["GET", "POST"])
+def score():
+    result = None
+
+    if request.method == "POST":
+        # アップロードされた画像
+        file = request.files.get("image")
+
+        if file:
+            # アップロードフォルダがなければ作る
+            upload_dir = "uploads"
+            os.makedirs(upload_dir, exist_ok=True)
+
+            # 保存
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(upload_dir, filename)
+            file.save(filepath)
+
+            # 仮判定（モック）
+            # 中間発表向け：あとで mahjong + Roboflow に差し替え
+            result = {
+                "yaku": "リーチ・ツモ・タンヤオ",
+                "han": 3,
+                "cost": 3900
+            }
+
+    return render_template("score.html", result=result)
 
 
 if __name__ == '__main__':
