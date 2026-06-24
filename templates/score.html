@@ -2,43 +2,27 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macni雀 - 点数計算</title>
-{{ url_for('static', filename='css/style.css') }}
+<title>Macni雀 点数計算</title>
 </head>
 <body>
 
-<div class="container">
+<h1>Macni雀 点数計算</h1>
 
-<div class="header">
-{{ url_for('menu') }}
-<span class="nickname">{{ nickname }}</span>
-</div>
+<p>ファイルを選択して、解析するボタンを押してください。</p>
 
-<h1>麻雀 点数計算</h1>
-
-<p>手牌の画像をアップロードしてください。仮判定の動作確認用です。</p>
-
-<div class="upload">
-
-{{ url_for('score') }}
-  <input type="file" name="image" accept="image/*" required>
+<form method="POST" enctype="multipart/form-data">
+  <input type="file" name="image" required>
   <br><br>
-  <button type="submit" class="menu-btn">解析する</button>
+  <button type="submit">解析する</button>
 </form>
 
-</div>
-
 {% if result %}
-<div class="result-card">
+<hr>
 <h2>結果</h2>
 <p>役: {{ result.yaku }}</p>
 <p>翻数: {{ result.han }}</p>
-<p>点数: {{ result.cost }} 点</p>
-</div>
+<p>点数: {{ result.cost }}</p>
 {% endif %}
-
-</div>
 
 </body>
 </html>
