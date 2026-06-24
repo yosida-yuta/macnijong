@@ -1,43 +1,53 @@
+import os
+import base64
+import hashlib
+from datetime import date
 
-from flask import Flask, render_template, request, session, redirect, url_for
+import pymysql
+import requests
+from dotenv import load_dotenv
+
+from flask import (
+    Flask, jsonify, render_template, request,
+    redirect, url_for, session, flash
+)
+from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.tile import TilesConverter
 from mahjong.hand_calculating.hand_config import HandConfig
 
-from werkzeug.utils import secure_filename
-import os
-import os
-from flask import Flask, jsonify, render_template, request, redirect, url_for, session, flash
-from dotenv import load_dotenv
-import pymysql
-import hashlib
-import requests
-import base64
+
+# ============================================
+# Flask 初期化
+# ============================================
 
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'macnijong-default-key')
-
-from werkzeug.middleware.proxy_fix import ProxyFix
-
+app.secret_key = os.getenv("SECRET_KEY", "macnijong-default-key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax'
+    SESSION_COOKIE_SAMESITE="Lax",
 )
 
 
+# ============================================
+# DB & ユーティリティ
+# ============================================
+
 def get_db():
     return pymysql.connect(
-        host=os.getenv('DB_HOST'),
-        port=int(os.getenv('DB_PORT', 3306)),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASSWORD', ''),
-        database=os.getenv('DB_NAME'),
-        cursorclass=pymysql.cursors.DictCursor
+        host=os.getenv("DB_HOST"),
+        port=int(os.getenv("DB_PORT", 3306)),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME"),
+        cursorclass=pymysql.cursors.DictCursor,
     )
 
 
@@ -45,21 +55,23 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-# トップページ
-@app.route('/')
+# ============================================
+# 共通ページ
+# ============================================
+
+@app.route("/")
 def index():
-    if 'user_id' in session:
-        return redirect(url_for('menu'))
-    return redirect(url_for('login'))
+    if "user_id" in session:
+        return redirect(url_for("menu"))
+    return redirect(url_for("login"))
 
 
-# ログイン画面
-@app.route('/login', methods=['GET', 'POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
-    if request.method == 'POST':
-        emp_num = request.form.get('employee_number', '')
-        password = request.form.get('password', '')
+    if request.method == "POST":
+        emp_num = request.form.get("employee_number", "")
+        password = request.form.get("password", "")
         pw_hash = hash_password(password)
 
         conn = get_db()
@@ -73,23 +85,22 @@ def login():
         conn.close()
 
         if user:
-            session['user_id'] = user['id']
-            session['nickname'] = user['nickname']
-            return redirect(url_for('menu'))
+            session["user_id"] = user["id"]
+            session["nickname"] = user["nickname"]
+            return redirect(url_for("menu"))
         else:
-            error = '社員番号またはパスワードが正しくありません'
+            error = "社員番号またはパスワードが正しくありません"
 
-    return render_template('login.html', error=error)
+    return render_template("login.html", error=error)
 
 
-# アカウント新規作成
-@app.route('/register', methods=['GET', 'POST'])
+@app.route("/register", methods=["GET", "POST"])
 def register():
     error = None
-    if request.method == 'POST':
-        nickname = request.form.get('nickname', '')
-        emp_num = request.form.get('employee_number', '')
-        password = request.form.get('password', '')
+    if request.method == "POST":
+        nickname = request.form.get("nickname", "")
+        emp_num = request.form.get("employee_number", "")
+        password = request.form.get("password", "")
         pw_hash = hash_password(password)
 
         conn = get_db()
@@ -102,130 +113,126 @@ def register():
             conn.commit()
             cursor.close()
             conn.close()
-            flash('登録完了しました。ログインしてください。')
-            return redirect(url_for('login'))
+            flash("登録完了しました。ログインしてください。")
+            return redirect(url_for("login"))
         except pymysql.err.IntegrityError:
-            error = 'その社員番号は既に登録されています'
+            error = "その社員番号は既に登録されています"
             cursor.close()
             conn.close()
 
-    return render_template('register.html', error=error)
+    return render_template("register.html", error=error)
 
 
-# メインメニュー
-@app.route('/menu')
+@app.route("/menu")
 def menu():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    return render_template('menu.html', nickname=session.get('nickname'))
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    return render_template("menu.html", nickname=session.get("nickname"))
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 # ============================================
 # 点数管理機能
 # ============================================
 
-@app.route('/score-manage')
+@app.route("/score-manage")
 def score_manage():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
     conn = get_db()
     cursor = conn.cursor()
-    
-    # 全ユーザー取得（プレイヤー選択用）
+
     cursor.execute("SELECT id, employee_number, nickname FROM users ORDER BY nickname")
     users = cursor.fetchall()
-    
-    # 自分が所属するグループを取得
+
     cursor.execute("""
         SELECT g.id, g.group_name
         FROM groups_tbl g
         JOIN group_members gm ON g.id = gm.group_id
         WHERE gm.user_id = %s
         ORDER BY g.group_name
-    """, (session['user_id'],))
+    """, (session["user_id"],))
     user_groups = cursor.fetchall()
-    
+
     cursor.close()
     conn.close()
 
     return render_template(
-        'score_manage.html',
-        username=session.get('nickname'),
+        "score_manage.html",
+        username=session.get("nickname"),
         users=users,
-        user_groups=user_groups
+        user_groups=user_groups,
     )
 
 
-@app.route('/score-manage/save', methods=['POST'])
+@app.route("/score-manage/save", methods=["POST"])
 def score_manage_save():
-    if 'user_id' not in session:
-        return jsonify({'status': 'error', 'message': 'ログインしてください'}), 401
+    if "user_id" not in session:
+        return jsonify({"status": "error", "message": "ログインしてください"}), 401
 
     data = request.get_json()
-    played_date = data.get('played_date')
-    group_id = data.get('group_id')  # 追加
-    players = data.get('players', [])
-    rounds = data.get('rounds', [])
+    played_date = data.get("played_date")
+    group_id = data.get("group_id")
+    players = data.get("players", [])
+    rounds = data.get("rounds", [])
 
     if not played_date:
-        return jsonify({'status': 'error', 'message': '日付が指定されていません'}), 400
-
+        return jsonify({"status": "error", "message": "日付が指定されていません"}), 400
     if len(players) != 4:
-        return jsonify({'status': 'error', 'message': 'プレイヤーは4人必要です'}), 400
-
+        return jsonify({"status": "error", "message": "プレイヤーは4人必要です"}), 400
     if not rounds:
-        return jsonify({'status': 'error', 'message': '半荘データがありません'}), 400
+        return jsonify({"status": "error", "message": "半荘データがありません"}), 400
 
     for r in rounds:
-        if sum(r['scores']) != 0:
+        if sum(r["scores"]) != 0:
             return jsonify({
-                'status': 'error',
-                'message': f'半荘{r["round_number"]}の合計が0になっていません'
+                "status": "error",
+                "message": f'半荘{r["round_number"]}の合計が0になっていません'
             }), 400
 
-    # グループIDが空文字なら None に変換
-    if group_id == '' or group_id is None:
-        group_id = None
-    else:
-        group_id = int(group_id)
+    group_id = None if (group_id == "" or group_id is None) else int(group_id)
 
     try:
         conn = get_db()
         cursor = conn.cursor()
 
         for r in rounds:
-            for i, score in enumerate(r['scores']):
+            for i, score in enumerate(r["scores"]):
                 player = players[i]
                 cursor.execute(
-                    """INSERT INTO score_records 
-                       (group_id, user_id, score, point, round_number, played_date) 
+                    """INSERT INTO score_records
+                       (group_id, user_id, score, point, round_number, played_date)
                        VALUES (%s, %s, %s, %s, %s, %s)""",
-                    (group_id, player['user_id'], 0, score, r['round_number'], played_date)
+                    (group_id, player["user_id"], 0, score, r["round_number"], played_date)
                 )
 
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'status': 'success', 'message': '保存しました'})
+        return jsonify({"status": "success", "message": "保存しました"})
 
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 # ============================================
 # グループ機能
 # ============================================
 
-@app.route('/groups')
+@app.route("/groups")
 def groups():
-    """グループ一覧"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
-    user_id = session['user_id']
-    search = request.args.get('q', '').strip()
+    user_id = session["user_id"]
+    search = request.args.get("q", "").strip()
 
     conn = get_db()
     cursor = conn.cursor()
@@ -242,7 +249,7 @@ def groups():
             WHERE gm.user_id = %s
             AND (g.group_name LIKE %s OR u.nickname LIKE %s OR u.employee_number LIKE %s)
             ORDER BY last_played DESC, g.created_at DESC
-        """, (user_id, f'%{search}%', f'%{search}%', f'%{search}%'))
+        """, (user_id, f"%{search}%", f"%{search}%", f"%{search}%"))
     else:
         cursor.execute("""
             SELECT g.id, g.group_name, g.created_at,
@@ -259,33 +266,32 @@ def groups():
     conn.close()
 
     return render_template(
-        'groups.html',
-        nickname=session.get('nickname'),
+        "groups.html",
+        nickname=session.get("nickname"),
         groups=group_list,
-        search=search
+        search=search,
     )
 
 
-@app.route('/groups/new', methods=['GET', 'POST'])
+@app.route("/groups/new", methods=["GET", "POST"])
 def groups_new():
-    """グループ新規作成"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
-    if request.method == 'POST':
-        group_name = request.form.get('group_name', '').strip()
-        member_ids = request.form.getlist('member_ids')
+    if request.method == "POST":
+        group_name = request.form.get("group_name", "").strip()
+        member_ids = request.form.getlist("member_ids")
 
         if not group_name:
-            flash('グループ名を入力してください')
-            return redirect(url_for('groups_new'))
+            flash("グループ名を入力してください")
+            return redirect(url_for("groups_new"))
 
         if len(member_ids) < 2:
-            flash('メンバーは2人以上選択してください')
-            return redirect(url_for('groups_new'))
+            flash("メンバーは2人以上選択してください")
+            return redirect(url_for("groups_new"))
 
-        if str(session['user_id']) not in member_ids:
-            member_ids.append(str(session['user_id']))
+        if str(session["user_id"]) not in member_ids:
+            member_ids.append(str(session["user_id"]))
 
         try:
             conn = get_db()
@@ -293,7 +299,7 @@ def groups_new():
 
             cursor.execute(
                 "INSERT INTO groups_tbl (group_name, created_by) VALUES (%s, %s)",
-                (group_name, session['user_id'])
+                (group_name, session["user_id"])
             )
             group_id = cursor.lastrowid
 
@@ -308,33 +314,32 @@ def groups_new():
             conn.close()
 
             flash(f'グループ「{group_name}」を作成しました')
-            return redirect(url_for('groups'))
+            return redirect(url_for("groups"))
 
         except Exception as e:
-            return f'エラー: {str(e)}', 500
+            return f"エラー: {str(e)}", 500
 
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
         "SELECT id, employee_number, nickname FROM users WHERE id != %s ORDER BY nickname",
-        (session['user_id'],)
+        (session["user_id"],)
     )
     users = cursor.fetchall()
     cursor.close()
     conn.close()
 
     return render_template(
-        'groups_new.html',
-        nickname=session.get('nickname'),
-        users=users
+        "groups_new.html",
+        nickname=session.get("nickname"),
+        users=users,
     )
 
 
-@app.route('/groups/<int:group_id>')
+@app.route("/groups/<int:group_id>")
 def group_detail(group_id):
-    """グループ詳細"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
     conn = get_db()
     cursor = conn.cursor()
@@ -345,7 +350,7 @@ def group_detail(group_id):
     if not group:
         cursor.close()
         conn.close()
-        return 'グループが見つかりません', 404
+        return "グループが見つかりません", 404
 
     cursor.execute("""
         SELECT u.id, u.nickname, u.employee_number
@@ -356,11 +361,11 @@ def group_detail(group_id):
     """, (group_id,))
     members = cursor.fetchall()
 
-    member_ids = [m['id'] for m in members]
-    if session['user_id'] not in member_ids:
+    member_ids = [m["id"] for m in members]
+    if session["user_id"] not in member_ids:
         cursor.close()
         conn.close()
-        return 'このグループにアクセスする権限がありません', 403
+        return "このグループにアクセスする権限がありません", 403
 
     cursor.execute("""
         SELECT played_date, user_id, SUM(point) AS total_point
@@ -374,55 +379,49 @@ def group_detail(group_id):
     cursor.close()
     conn.close()
 
-    # データを整形：{日付: {user_id: ポイント}}
     date_data = {}
     for r in records:
-        date_key = r['played_date'].strftime('%Y-%m-%d')
+        date_key = r["played_date"].strftime("%Y-%m-%d")
         if date_key not in date_data:
             date_data[date_key] = {}
-        date_data[date_key][r['user_id']] = float(r['total_point'])
+        date_data[date_key][r["user_id"]] = float(r["total_point"])
 
-    # 合計を計算
-    totals = {m['id']: 0 for m in members}
+    totals = {m["id"]: 0 for m in members}
     for date_key, scores in date_data.items():
         for uid, point in scores.items():
             if uid in totals:
                 totals[uid] += point
 
     return render_template(
-        'group_detail.html',
-        nickname=session.get('nickname'),
+        "group_detail.html",
+        nickname=session.get("nickname"),
         group=group,
         members=members,
         date_data=date_data,
-        totals=totals
+        totals=totals,
     )
+
 
 # ============================================
 # マッチング機能
 # ============================================
 
-from datetime import date
-
-@app.route('/matching')
+@app.route("/matching")
 def matching():
-    """マッチング掲示板"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    user_id = session['user_id']
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
     conn = get_db()
     cursor = conn.cursor()
-    
-    # 期限切れ投稿を自動的に expired に
+
     cursor.execute("""
         UPDATE matching_posts
         SET status = 'expired'
         WHERE status = 'open' AND target_date < CURDATE()
     """)
     conn.commit()
-    
-    # 有効な投稿を取得
+
     cursor.execute("""
         SELECT mp.*, u.nickname AS poster_nickname, u.employee_number AS poster_empnum
         FROM matching_posts mp
@@ -432,63 +431,58 @@ def matching():
         ORDER BY mp.created_at DESC
     """)
     posts = cursor.fetchall()
-    
-    # 自分への未処理マッチング申請数
+
     cursor.execute("""
         SELECT COUNT(*) AS pending_count
         FROM matching_requests mr
         JOIN matching_posts mp ON mr.post_id = mp.id
         WHERE mp.user_id = %s AND mr.status = 'pending'
     """, (user_id,))
-    pending_count = cursor.fetchone()['pending_count']
-    
+    pending_count = cursor.fetchone()["pending_count"]
+
     cursor.close()
     conn.close()
-    
+
     return render_template(
-        'matching.html',
-        nickname=session.get('nickname'),
+        "matching.html",
+        nickname=session.get("nickname"),
         user_id=user_id,
         posts=posts,
-        pending_count=pending_count
+        pending_count=pending_count,
     )
 
 
-@app.route('/matching/post', methods=['POST'])
+@app.route("/matching/post", methods=["POST"])
 def matching_post():
-    """募集または応募の投稿"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    post_type = request.form.get('post_type')  # 'recruit' or 'apply'
-    target_date = request.form.get('target_date', '').strip()
-    time_range = request.form.get('time_range', '').strip()
-    location = request.form.get('location', '').strip()
-    needed_count = request.form.get('needed_count', '0')
-    comment = request.form.get('comment', '').strip()
-    
-    # バリデーション
-    if post_type not in ['recruit', 'apply']:
-        flash('投稿タイプが不正です')
-        return redirect(url_for('matching'))
-    
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    post_type = request.form.get("post_type")
+    target_date = request.form.get("target_date", "").strip()
+    time_range = request.form.get("time_range", "").strip()
+    location = request.form.get("location", "").strip()
+    needed_count = request.form.get("needed_count", "0")
+    comment = request.form.get("comment", "").strip()
+
+    if post_type not in ["recruit", "apply"]:
+        flash("投稿タイプが不正です")
+        return redirect(url_for("matching"))
     if not target_date:
-        flash('日付を入力してください')
-        return redirect(url_for('matching'))
-    
+        flash("日付を入力してください")
+        return redirect(url_for("matching"))
     if not location:
-        flash('場所を入力してください')
-        return redirect(url_for('matching'))
-    
+        flash("場所を入力してください")
+        return redirect(url_for("matching"))
+
     try:
-        needed_count = int(needed_count) if post_type == 'recruit' else 0
+        needed_count = int(needed_count) if post_type == "recruit" else 0
     except ValueError:
         needed_count = 0
-    
-    if post_type == 'recruit' and (needed_count < 1 or needed_count > 3):
-        flash('募集人数は1〜3人で入力してください')
-        return redirect(url_for('matching'))
-    
+
+    if post_type == "recruit" and (needed_count < 1 or needed_count > 3):
+        flash("募集人数は1〜3人で入力してください")
+        return redirect(url_for("matching"))
+
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -496,99 +490,80 @@ def matching_post():
             INSERT INTO matching_posts
             (user_id, post_type, target_date, time_range, location, needed_count, comment, status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, 'open')
-        """, (session['user_id'], post_type, target_date, time_range, location, needed_count, comment))
+        """, (session["user_id"], post_type, target_date, time_range, location, needed_count, comment))
         conn.commit()
         cursor.close()
         conn.close()
-        
-        flash('投稿しました')
-        return redirect(url_for('matching'))
-    
+        flash("投稿しました")
+        return redirect(url_for("matching"))
     except Exception as e:
-        return f'エラー: {str(e)}', 500
+        return f"エラー: {str(e)}", 500
 
 
-@app.route('/matching/<int:post_id>/delete', methods=['POST'])
+@app.route("/matching/<int:post_id>/delete", methods=["POST"])
 def matching_delete(post_id):
-    """投稿を削除（自分の投稿のみ）"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
     try:
         conn = get_db()
         cursor = conn.cursor()
-        
-        # 自分の投稿か確認
+
         cursor.execute("SELECT user_id FROM matching_posts WHERE id = %s", (post_id,))
         post = cursor.fetchone()
-        
-        if not post or post['user_id'] != session['user_id']:
+        if not post or post["user_id"] != session["user_id"]:
             cursor.close()
             conn.close()
-            return '権限がありません', 403
-        
-        # 投稿を closed に
+            return "権限がありません", 403
+
         cursor.execute("UPDATE matching_posts SET status = 'closed' WHERE id = %s", (post_id,))
-        
-        # この投稿への pending 申請を rejected に
         cursor.execute("""
             UPDATE matching_requests SET status = 'rejected'
             WHERE post_id = %s AND status = 'pending'
         """, (post_id,))
-        
+
         conn.commit()
         cursor.close()
         conn.close()
-        
-        flash('投稿を削除しました')
-        return redirect(url_for('matching'))
-    
+        flash("投稿を削除しました")
+        return redirect(url_for("matching"))
     except Exception as e:
-        return f'エラー: {str(e)}', 500
+        return f"エラー: {str(e)}", 500
 
 
-@app.route('/matching/<int:post_id>/request', methods=['POST'])
+@app.route("/matching/<int:post_id>/request", methods=["POST"])
 def matching_request(post_id):
-    """マッチング申請"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    user_id = session['user_id']
-    
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
     try:
         conn = get_db()
         cursor = conn.cursor()
-        
-        # 投稿を取得
+
         cursor.execute("SELECT * FROM matching_posts WHERE id = %s", (post_id,))
         post = cursor.fetchone()
-        
         if not post:
             cursor.close()
             conn.close()
-            return '投稿が見つかりません', 404
-        
-        # 自分の投稿には申請できない
-        if post['user_id'] == user_id:
+            return "投稿が見つかりません", 404
+
+        if post["user_id"] == user_id:
             cursor.close()
             conn.close()
-            flash('自分の投稿には申請できません')
-            return redirect(url_for('matching'))
-        
-        # 重複申請チェック
+            flash("自分の投稿には申請できません")
+            return redirect(url_for("matching"))
+
         cursor.execute("""
             SELECT id FROM matching_requests
             WHERE post_id = %s AND requester_id = %s AND status IN ('pending', 'accepted')
         """, (post_id, user_id))
-        existing = cursor.fetchone()
-        
-        if existing:
+        if cursor.fetchone():
             cursor.close()
             conn.close()
-            flash('既に申請済みです')
-            return redirect(url_for('matching'))
-        
-        # 申請を作成
+            flash("既に申請済みです")
+            return redirect(url_for("matching"))
+
         cursor.execute("""
             INSERT INTO matching_requests (post_id, requester_id, status)
             VALUES (%s, %s, 'pending')
@@ -596,24 +571,21 @@ def matching_request(post_id):
         conn.commit()
         cursor.close()
         conn.close()
-        
-        flash('マッチング申請を送りました')
-        return redirect(url_for('matching'))
-    
+        flash("マッチング申請を送りました")
+        return redirect(url_for("matching"))
     except Exception as e:
-        return f'エラー: {str(e)}', 500
+        return f"エラー: {str(e)}", 500
 
 
-@app.route('/matching/requests')
+@app.route("/matching/requests")
 def matching_requests():
-    """自分への申請一覧"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    user_id = session['user_id']
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
     conn = get_db()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         SELECT mr.*, mp.post_type, mp.target_date, mp.time_range, mp.location, mp.comment AS post_comment,
                u.nickname AS requester_nickname, u.employee_number AS requester_empnum
@@ -624,30 +596,27 @@ def matching_requests():
         ORDER BY mr.created_at DESC
     """, (user_id,))
     requests_list = cursor.fetchall()
-    
+
     cursor.close()
     conn.close()
-    
+
     return render_template(
-        'matching_requests.html',
-        nickname=session.get('nickname'),
-        requests=requests_list
+        "matching_requests.html",
+        nickname=session.get("nickname"),
+        requests=requests_list,
     )
 
 
-@app.route('/matching/requests/<int:request_id>/accept', methods=['POST'])
+@app.route("/matching/requests/<int:request_id>/accept", methods=["POST"])
 def matching_accept(request_id):
-    """マッチング承認"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    user_id = session['user_id']
-    
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
     try:
         conn = get_db()
         cursor = conn.cursor()
-        
-        # 申請取得
+
         cursor.execute("""
             SELECT mr.*, mp.user_id AS post_owner_id, mp.needed_count
             FROM matching_requests mr
@@ -655,51 +624,40 @@ def matching_accept(request_id):
             WHERE mr.id = %s
         """, (request_id,))
         req = cursor.fetchone()
-        
-        if not req or req['post_owner_id'] != user_id:
+        if not req or req["post_owner_id"] != user_id:
             cursor.close()
             conn.close()
-            return '権限がありません', 403
-        
-        # 申請を accepted に
+            return "権限がありません", 403
+
         cursor.execute("UPDATE matching_requests SET status = 'accepted' WHERE id = %s", (request_id,))
-        
-        # 募集人数を1減らす
         cursor.execute("""
             UPDATE matching_posts SET needed_count = GREATEST(needed_count - 1, 0)
             WHERE id = %s
-        """, (req['post_id'],))
-        
-        # 残り0人なら matched に
-        cursor.execute("SELECT needed_count FROM matching_posts WHERE id = %s", (req['post_id'],))
+        """, (req["post_id"],))
+        cursor.execute("SELECT needed_count FROM matching_posts WHERE id = %s", (req["post_id"],))
         updated = cursor.fetchone()
-        if updated['needed_count'] == 0:
-            cursor.execute("UPDATE matching_posts SET status = 'matched' WHERE id = %s", (req['post_id'],))
-        
+        if updated["needed_count"] == 0:
+            cursor.execute("UPDATE matching_posts SET status = 'matched' WHERE id = %s", (req["post_id"],))
+
         conn.commit()
         cursor.close()
         conn.close()
-        
-        flash('マッチング成立しました')
-        return redirect(url_for('matching_requests'))
-    
+        flash("マッチング成立しました")
+        return redirect(url_for("matching_requests"))
     except Exception as e:
-        return f'エラー: {str(e)}', 500
+        return f"エラー: {str(e)}", 500
 
 
-@app.route('/matching/requests/<int:request_id>/reject', methods=['POST'])
+@app.route("/matching/requests/<int:request_id>/reject", methods=["POST"])
 def matching_reject(request_id):
-    """マッチング拒否"""
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    user_id = session['user_id']
-    
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
     try:
         conn = get_db()
         cursor = conn.cursor()
-        
-        # 申請取得（自分の投稿かチェック）
+
         cursor.execute("""
             SELECT mr.id, mp.user_id AS post_owner_id
             FROM matching_requests mr
@@ -707,97 +665,43 @@ def matching_reject(request_id):
             WHERE mr.id = %s
         """, (request_id,))
         req = cursor.fetchone()
-        
-        if not req or req['post_owner_id'] != user_id:
+        if not req or req["post_owner_id"] != user_id:
             cursor.close()
             conn.close()
-            return '権限がありません', 403
-        
+            return "権限がありません", 403
+
         cursor.execute("UPDATE matching_requests SET status = 'rejected' WHERE id = %s", (request_id,))
         conn.commit()
         cursor.close()
         conn.close()
-        
-        flash('申請を拒否しました')
-        return redirect(url_for('matching_requests'))
-    
+        flash("申請を拒否しました")
+        return redirect(url_for("matching_requests"))
     except Exception as e:
-        return f'エラー: {str(e)}', 500
-
-# ログアウト
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('login'))
+        return f"エラー: {str(e)}", 500
 
 
-# DB接続テスト
-@app.route('/db-test')
-def db_test():
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT DATABASE() AS db, NOW() AS nowtime")
-        row = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        return jsonify({
-            'status': 'success',
-            'database': row['db'],
-            'time': str(row['nowtime'])
-        })
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@app.route('/test-ai')
-def test_ai():
-    try:
-        with open("test.png", "rb") as image_file:
-            image_data = base64.b64encode(image_file.read()).decode("utf-8")
-
-        response = requests.post(
-            "https://detect.roboflow.com/mahjong-baq4s/83?api_key=dc4irMHEIzzkRioxALzZ",
-            data=image_data,
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            verify=False
-        )
-
-        return jsonify(response.json())
-
-    except Exception as e:
-        return str(e)
-
-from flask import Flask, render_template, request, session, redirect, url_for
-from mahjong.hand_calculating.hand import HandCalculator
-from mahjong.tile import TilesConverter
-from mahjong.hand_calculating.hand_config import HandConfig
-
-# 既に Flask アプリ作成済みのものを利用
-# app = Flask(__name__)
-# secret_key設定済みのはずです
+# ============================================
+# 点数計算機能（mahjong）
+# ============================================
 
 @app.route("/score", methods=["GET", "POST"])
 def score():
     result = None
 
     if request.method == "POST":
-        # 画像保存
         image = request.files.get("image")
         if image:
-            image.save("static/uploads/" + image.filename)
+            os.makedirs("static/uploads", exist_ok=True)
+            image.save("static/uploads/" + secure_filename(image.filename))
 
-        # 中間発表用 仮判定（あとで Roboflow に置き換え）
         calculator = HandCalculator()
         tiles = TilesConverter.string_to_136_array(
-            man='234',
-            pin='567',
-            sou='678',
-            honors='5555'
+            man="234",
+            pin="567",
+            sou="678",
+            honors="5555",
         )
-        win_tile = TilesConverter.string_to_136_array(sou='6')[0]
+        win_tile = TilesConverter.string_to_136_array(sou="6")[0]
 
         config = HandConfig(is_tsumo=True)
         calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
@@ -808,12 +712,61 @@ def score():
             "cost": calc.cost["main"] if calc.cost else "計算できず",
         }
 
-    return render_template("score.html",
-                           result=result,
-                           nickname=session.get("nickname", ""))
+    return render_template(
+        "score.html",
+        result=result,
+        nickname=session.get("nickname", "")
+    )
 
 
-if __name__ == '__main__':
-    port = int(os.getenv('FLASK_PORT', 5000))
-    app.run(host='0.0.0.0', port=5000)
+# ============================================
+# AIテスト
+# ============================================
 
+@app.route("/test-ai")
+def test_ai():
+    try:
+        with open("test.png", "rb") as image_file:
+            image_data = base64.b64encode(image_file.read()).decode("utf-8")
+
+        response = requests.post(
+            "https://detect.roboflow.com/mahjong-baq4s/83?api_key=dc4irMHEIzzkRioxALzZ",
+            data=image_data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            verify=False,
+        )
+
+        return jsonify(response.json())
+    except Exception as e:
+        return str(e)
+
+
+# ============================================
+# DB接続テスト
+# ============================================
+
+@app.route("/db-test")
+def db_test():
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT DATABASE() AS db, NOW() AS nowtime")
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return jsonify({
+            "status": "success",
+            "database": row["db"],
+            "time": str(row["nowtime"]),
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============================================
+# 起動
+# ============================================
+
+if __name__ == "__main__":
+    port = int(os.getenv("FLASK_PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
