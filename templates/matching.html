@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マッチング - Macni雀</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header class="header">
+        <a href="/menu" class="back-link">← メニュー</a>
+        <h1 class="app-title">Macni雀</h1>
+        <span class="nickname">{{ nickname }}</span>
+    </header>
+
+    <main class="main-container">
+        <div class="page-header">
+            <h2 class="page-title">マッチング</h2>
+            <a href="{{ url_for('matching_requests') }}" class="btn-secondary">
+                📬 申請一覧
+                {% if pending_count > 0 %}
+                    <span class="badge">{{ pending_count }}</span>
+                {% endif %}
+            </a>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for msg in messages %}
+                    <div class="flash-message">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="tab-container">
+            <button class="tab-btn active" data-tab="board">📋 掲示板</button>
+            <button class="tab-btn" data-tab="recruit">🟢 募集する</button>
+            <button class="tab-btn" data-tab="apply">🔵 応募する</button>
+        </div>
+
+        <div id="tab-board" class="tab-content active">
+            {% if posts %}
+                <div class="post-list">
+                    {% for p in posts %}
+                        <div class="post-card {% if p.post_type == 'recruit' %}post-recruit{% else %}post-apply{% endif %}">
+                            <div class="post-header">
+                                <span class="post-type">
+                                    {% if p.post_type == 'recruit' %}🟢 募集{% else %}🔵 応募{% endif %}
+                                </span>
+                                <span class="post-status status-{{ p.status }}">
+                                    {% if p.status == 'matched' %}成立{% else %}{{ p.status }}{% endif %}
+                                </span>
+                            </div>
+                            <div class="post-poster">{{ p.poster_nickname }}（{{ p.poster_empnum }}）</div>
+                            <div class="post-details">
+                                <div>📅 {{ p.target_date.strftime('%Y/%m/%d') }}</div>
+                                <div>⏰ {{ p.time_range or '時間未定' }}</div>
+                                <div>📍 {{ p.location }}</div>
+                                {% if p.post_type == 'recruit' and p.status == 'open' %}
+                                    <div>👥 あと{{ p.needed_count }}人募集中</div>
+                                {% endif %}
+                                {% if p.comment %}
+                                    <div class="post-comment">💬 {{ p.comment }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="post-actions">
+                                {% if p.user_id == user_id %}
+                                    <form method="POST" action="{{ url_for('matching_delete', post_id=p.id) }}" onsubmit="return confirm('この投稿を削除しますか？');" class="inline-form">
+                                        <button type="submit" class="btn-danger btn-small">削除</button>
+                                    </form>
+                                {% elif p.status == 'open' %}
+                                    <form method="POST" action="{{ url_for('matching_request', post_id=p.id) }}" onsubmit="return confirm('この投稿に申請しますか？');" class="inline-form">
+                                        <button type="submit" class="btn-primary btn-small">🤝 マッチングする</button>
+                                    </form>
+                                {% else %}
+                                    <span class="matched-label">成立済み</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>まだ投稿がありません</p>
+                    <p>「募集する」「応募する」から投稿してみましょう</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div id="tab-recruit" class="tab-content">
+            <h3 class="section-title">🟢 募集する（卓を立てる）</h3>
+            <form method="POST" action="{{ url_for('matching_post') }}" class="post-form">
+                <input type="hidden" name="post_type" value="recruit">
+                
+                <div class="form-section">
+                    <label class="form-label">日付</label>
+                    <input type="date" name="target_date" class="form-input" required>
+                </div>
+                
+                <div class="form-section">
+                    <label class="form-label">時間帯</label>
+                    <select name="time_range" class="form-input">
+                        <option value="">時間未定</option>
+                        <option value="午前">午前</option>
+                        <option value="午後">午後</option>
+                        <option value="18時以降">18時以降</option>
+                        <option value="終日可">終日可</option>
+                    </select>
+                </div>
+                
+                <div class="form-section">
+                    <label class="form-label">場所（最寄り駅）</label>
+                    <input type="text" name="location" class="form-input" placeholder="例：梅田駅" required maxlength="100">
+                </div>
+                
+                <div class="form-section">
+                    <label class="form-label">募集人数</label>
+                    <select name="needed_count" class="form-input">
+                        <option value="1">1人</option>
+                        <option value="2">2人</option>
+                        <option value="3" selected>3人</option>
+                    </select>
+                </div>
+                
+                <div class="form-section">
+                    <label class="form-label">ひとこと（任意）</label>
+                    <input type="text" name="comment" class="form-input" placeholder="例：初心者歓迎！" maxlength="200">
+                </div>
+                
+                <button type="submit" class="btn-primary">募集を投稿</button>
+            </form>
+        </div>
+
+        <div id="tab-apply" class="tab-content">
+            <h3 class="section-title">🔵 応募する（打ちたい）</h3>
+            <form method="POST" action="{{ url_for('matching_post') }}" class="post-form">
+                <input type="hidden" name="post_type" value="apply">
+                
+                <div class="form-section">
+                    <label class="form-label">打てる日付</label>
+                    <input type="date" name="target_date" class="form-input" required>
+                </div>
+                
+                <div class="form-section">
+                    <label class="form-label">時間帯</label>
+                    <select name="time_range" class="form-input">
+                        <option value="">時間未定</option>
+                        <option value="午前">午前</option>
+                        <option value="午後">午後</option>
+                        <option value="18時以降">18時以降</option>
+                        <option value="終日可">終日可</option>
+                    </select>
+                </div>
+                
+                <div class="form-section">
+                    <label class="form-label">場所（最寄り駅）</label>
+                    <input type="text" name="location" class="form-input" placeholder="例：なんば駅" required maxlength="100">
+                </div>
+                
+                <div class="form-section">
+                    <label class="form-label">ひとこと（任意）</label>
+                    <input type="text" name="comment" class="form-input" placeholder="例：打てる人探しています" maxlength="200">
+                </div>
+                
+                <button type="submit" class="btn-primary">応募を投稿</button>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetTab = btn.dataset.tab;
+                
+                tabButtons.forEach(b => b.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                
+                btn.classList.add('active');
+                document.getElementById('tab-' + targetTab).classList.add('active');
+            });
+        });
+
+        const today = new Date().toISOString().split('T')[0];
+        document.querySelectorAll('input[name="target_date"]').forEach(input => {
+            input.min = today;
+        });
+    </script>
+</body>
+</html>

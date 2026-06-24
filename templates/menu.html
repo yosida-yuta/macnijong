@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Macni雀 - メニュー</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/logout" class="logout-link">ログアウト</a>
+            <span class="nickname">{{ nickname }}</span>
+        </div>
+
+        <h1>Macni雀</h1>
+
+        <div class="menu-grid">
+            <a href="#" class="menu-btn">🀄 点数計算</a>
+            <a href="{{ url_for('score_manage') }}" class="menu-btn">📊 点数管理</a>
+            <a href="{{ url_for('groups') }}" class="menu-btn">👥 グループ</a>
+            <a href="{{ url_for('matching') }}" class="menu-btn">🤝 マッチング</a>
+        </div>
+    </div>
+</body>
+</html>

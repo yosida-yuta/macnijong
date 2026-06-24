@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>グループ - Macni雀</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header class="header">
+        <a href="/menu" class="back-link">← メニュー</a>
+        <h1 class="app-title">Macni雀</h1>
+        <span class="nickname">{{ nickname }}</span>
+    </header>
+
+    <main class="main-container">
+        <div class="page-header">
+            <h2 class="page-title">グループ</h2>
+            <a href="{{ url_for('groups_new') }}" class="btn-primary">＋ 新規作成</a>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for msg in messages %}
+                    <div class="flash-message">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="GET" action="{{ url_for('groups') }}" class="search-form">
+            <input type="text" name="q" placeholder="グループ名・メンバー名で検索" value="{{ search }}" class="search-input">
+            <button type="submit" class="btn-secondary">検索</button>
+            {% if search %}
+                <a href="{{ url_for('groups') }}" class="btn-clear">クリア</a>
+            {% endif %}
+        </form>
+
+        {% if groups %}
+            <div class="group-list">
+                {% for g in groups %}
+                    <a href="{{ url_for('group_detail', group_id=g.id) }}" class="group-card">
+                        <div class="group-name">{{ g.group_name }}</div>
+                        <div class="group-meta">
+                            <span class="meta-item">👥 {{ g.member_count }}人</span>
+                            <span class="meta-item">
+                                {% if g.last_played %}
+                                    📅 最終対局: {{ g.last_played.strftime('%Y/%m/%d') }}
+                                {% else %}
+                                    📅 まだ対局なし
+                                {% endif %}
+                            </span>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                {% if search %}
+                    <p>「{{ search }}」に一致するグループが見つかりませんでした</p>
+                {% else %}
+                    <p>まだグループに所属していません</p>
+                    <p>「＋ 新規作成」からグループを作りましょう</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </main>
+</body>
+</html>

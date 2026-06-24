@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マッチング申請 - Macni雀</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header class="header">
+        <a href="/matching" class="back-link">← マッチング掲示板</a>
+        <h1 class="app-title">Macni雀</h1>
+        <span class="nickname">{{ nickname }}</span>
+    </header>
+
+    <main class="main-container">
+        <h2 class="page-title">📬 マッチング申請一覧</h2>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for msg in messages %}
+                    <div class="flash-message">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if requests %}
+            <div class="request-list">
+                {% for r in requests %}
+                    <div class="request-card">
+                        <div class="request-header">
+                            <span class="requester-name">{{ r.requester_nickname }}</span>
+                            <span class="requester-empnum">{{ r.requester_empnum }}</span>
+                        </div>
+                        <div class="request-details">
+                            <div class="post-type-label">
+                                あなたの{% if r.post_type == 'recruit' %}🟢 募集投稿{% else %}🔵 応募投稿{% endif %}に申請がありました
+                            </div>
+                            <div>📅 {{ r.target_date.strftime('%Y/%m/%d') }}</div>
+                            <div>⏰ {{ r.time_range or '時間未定' }}</div>
+                            <div>📍 {{ r.location }}</div>
+                            {% if r.post_comment %}
+                                <div class="post-comment">💬 {{ r.post_comment }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="request-actions">
+                            <form method="POST" action="{{ url_for('matching_accept', request_id=r.id) }}" onsubmit="return confirm('この申請を承認しますか？');" class="inline-form">
+                                <button type="submit" class="btn-primary">✅ 承認</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('matching_reject', request_id=r.id) }}" onsubmit="return confirm('この申請を拒否しますか？');" class="inline-form">
+                                <button type="submit" class="btn-danger">❌ 拒否</button>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <p>未処理の申請はありません</p>
+            </div>
+        {% endif %}
+    </main>
+</body>
+</html>

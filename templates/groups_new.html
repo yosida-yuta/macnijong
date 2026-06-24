@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>グループ新規作成 - Macni雀</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header class="header">
+        <a href="/groups" class="back-link">← グループ一覧</a>
+        <h1 class="app-title">Macni雀</h1>
+        <span class="nickname">{{ nickname }}</span>
+    </header>
+
+    <main class="main-container">
+        <h2 class="page-title">グループ新規作成</h2>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for msg in messages %}
+                    <div class="flash-message error">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('groups_new') }}" id="group-form">
+            <div class="form-section">
+                <label class="form-label">グループ名</label>
+                <input type="text" name="group_name" class="form-input" placeholder="例：金曜麻雀部" required maxlength="50">
+            </div>
+
+            <div class="form-section">
+                <label class="form-label">メンバー選択（あなた以外から2人以上）</label>
+                <input type="text" id="member-search" class="form-input" placeholder="ニックネーム・社員番号で検索">
+                
+                <div class="member-count">選択中: <span id="selected-count">0</span>人</div>
+                
+                <div class="member-list">
+                    {% for user in users %}
+                        <label class="member-item" data-search="{{ user.nickname }} {{ user.employee_number }}">
+                            <input type="checkbox" name="member_ids" value="{{ user.id }}" class="member-checkbox">
+                            <span class="member-info">
+                                <span class="member-nickname">{{ user.nickname }}</span>
+                                <span class="member-empnum">{{ user.employee_number }}</span>
+                            </span>
+                        </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="button-section">
+                <button type="submit" class="btn-primary" id="submit-btn">グループを作成</button>
+                <a href="{{ url_for('groups') }}" class="btn-secondary">キャンセル</a>
+            </div>
+        </form>
+    </main>
+
+    <script>
+        const searchInput = document.getElementById('member-search');
+        const memberItems = document.querySelectorAll('.member-item');
+        
+        searchInput.addEventListener('input', () => {
+            const keyword = searchInput.value.toLowerCase();
+            memberItems.forEach(item => {
+                const searchText = item.dataset.search.toLowerCase();
+                item.style.display = searchText.includes(keyword) ? '' : 'none';
+            });
+        });
+
+        const checkboxes = document.querySelectorAll('.member-checkbox');
+        const selectedCount = document.getElementById('selected-count');
+        
+        function updateCount() {
+            const count = document.querySelectorAll('.member-checkbox:checked').length;
+            selectedCount.textContent = count;
+        }
+        
+        checkboxes.forEach(cb => cb.addEventListener('change', updateCount));
+
+        document.getElementById('group-form').addEventListener('submit', (e) => {
+            const count = document.querySelectorAll('.member-checkbox:checked').length;
+            if (count < 2) {
+                e.preventDefault();
+                alert('メンバーを2人以上選択してください');
+                return;
+            }
+            if (!confirm('この内容でグループを作成しますか？')) {
+                e.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>

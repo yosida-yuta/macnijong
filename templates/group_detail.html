@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ group.group_name }} - Macni雀</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header class="header">
+        <a href="/groups" class="back-link">← グループ一覧</a>
+        <h1 class="app-title">Macni雀</h1>
+        <span class="nickname">{{ nickname }}</span>
+    </header>
+
+    <main class="main-container">
+        <h2 class="page-title">{{ group.group_name }}</h2>
+
+        <div class="info-section">
+            <strong>メンバー:</strong>
+            {% for m in members %}
+                <span class="member-badge">{{ m.nickname }}</span>
+            {% endfor %}
+        </div>
+
+        {% if date_data %}
+            <h3 class="section-title">ポイント履歴</h3>
+            <div class="table-container">
+                <table class="point-table">
+                    <thead>
+                        <tr>
+                            <th>日付</th>
+                            {% for m in members %}
+                                <th>{{ m.nickname }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for date, scores in date_data.items() %}
+                            <tr>
+                                <td class="date-cell">{{ date }}</td>
+                                {% for m in members %}
+                                    {% if m.id in scores %}
+                                        {% set point = scores[m.id] %}
+                                        <td class="point-cell {% if point > 0 %}positive{% elif point < 0 %}negative{% endif %}">
+                                            {% if point > 0 %}+{% endif %}{{ point|int }}
+                                        </td>
+                                    {% else %}
+                                        <td class="point-cell">-</td>
+                                    {% endif %}
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td><strong>合計</strong></td>
+                            {% for m in members %}
+                                {% set total = totals[m.id] %}
+                                <td class="total-cell {% if total > 0 %}positive{% elif total < 0 %}negative{% endif %}">
+                                    {% if total > 0 %}+{% endif %}{{ total|int }}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <h3 class="section-title">ランキング</h3>
+            <div class="ranking-list">
+                {% set ranked = [] %}
+                {% for m in members %}
+                    {% set _ = ranked.append({'nickname': m.nickname, 'total': totals[m.id]}) %}
+                {% endfor %}
+                {% set sorted_ranked = ranked|sort(attribute='total', reverse=True) %}
+                
+                {% for r in sorted_ranked %}
+                    <div class="rank-item rank-{{ loop.index }}">
+                        <span class="rank-number">{{ loop.index }}位</span>
+                        <span class="rank-nickname">{{ r.nickname }}</span>
+                        <span class="rank-point {% if r.total > 0 %}positive{% elif r.total < 0 %}negative{% endif %}">
+                            {% if r.total > 0 %}+{% endif %}{{ r.total|int }}
+                        </span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <p>まだ対局記録がありません</p>
+                <p>点数管理ページで対局結果を記録しましょう</p>
+            </div>
+        {% endif %}
+    </main>
+</body>
+</html>

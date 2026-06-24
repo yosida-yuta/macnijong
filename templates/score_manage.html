@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>点数管理 - Macni雀</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="header">
+        <a href="{{ url_for('menu') }}" class="back-link">← メニュー</a>
+        <h1 class="app-title">Macni雀</h1>
+        <span class="nickname">{{ username }}</span>
+    </header>
+
+    <main class="main-container">
+        <h2 class="page-title">点数管理</h2>
+
+        <div class="date-section">
+            <label>対局日：</label>
+            <input type="date" id="played-date" required>
+        </div>
+
+        
+        <div class="date-section">
+            <label>グループ：</label>
+            <select id="group-select">
+                <option value="">グループなし（個人記録）</option>
+                {% for g in user_groups %}
+                    <option value="{{ g.id }}">{{ g.group_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+
+        <div class="table-container">
+            <table id="score-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>
+                            <select class="player-select" data-player="0">
+                                <option value="">プレイヤー1</option>
+                                {% for user in users %}
+                                <option value="{{ user.id }}" data-nickname="{{ user.nickname }}">
+                                    {{ user.nickname }}（{{ user.employee_number }}）
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </th>
+                        <th>
+                            <select class="player-select" data-player="1">
+                                <option value="">プレイヤー2</option>
+                                {% for user in users %}
+                                <option value="{{ user.id }}" data-nickname="{{ user.nickname }}">
+                                    {{ user.nickname }}（{{ user.employee_number }}）
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </th>
+                        <th>
+                            <select class="player-select" data-player="2">
+                                <option value="">プレイヤー3</option>
+                                {% for user in users %}
+                                <option value="{{ user.id }}" data-nickname="{{ user.nickname }}">
+                                    {{ user.nickname }}（{{ user.employee_number }}）
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </th>
+                        <th>
+                            <select class="player-select" data-player="3">
+                                <option value="">プレイヤー4</option>
+                                {% for user in users %}
+                                <option value="{{ user.id }}" data-nickname="{{ user.nickname }}">
+                                    {{ user.nickname }}（{{ user.employee_number }}）
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="score-tbody">
+                    <tr class="round-row">
+                        <td>半荘1</td>
+                        <td><input type="number" class="score-input" data-round="0" data-player="0"></td>
+                        <td><input type="number" class="score-input" data-round="0" data-player="1"></td>
+                        <td><input type="number" class="score-input" data-round="0" data-player="2"></td>
+                        <td><input type="number" class="score-input" data-round="0" data-player="3"></td>
+                        <td><button class="delete-row-btn" disabled>×</button></td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td>合計</td>
+                        <td class="total-cell" data-player="0">0</td>
+                        <td class="total-cell" data-player="1">0</td>
+                        <td class="total-cell" data-player="2">0</td>
+                        <td class="total-cell" data-player="3">0</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="button-section">
+            <button id="add-round-btn" class="btn-secondary">＋ 半荘を追加</button>
+            <button id="save-btn" class="btn-primary">保存</button>
+            <button id="reset-btn" class="btn-danger">リセット</button>
+        </div>
+
+        <div id="message-box" class="message-box"></div>
+    </main>
+
+    <script>
+        // 今日の日付を初期値に
+        document.getElementById('played-date').valueAsDate = new Date();
+
+        // 半荘行を追加
+        let roundCount = 1;
+        document.getElementById('add-round-btn').addEventListener('click', () => {
+            const tbody = document.getElementById('score-tbody');
+            const newRow = document.createElement('tr');
+            newRow.className = 'round-row';
+            newRow.innerHTML = `
+                <td>半荘${roundCount + 1}</td>
+                <td><input type="number" class="score-input" data-round="${roundCount}" data-player="0"></td>
+                <td><input type="number" class="score-input" data-round="${roundCount}" data-player="1"></td>
+                <td><input type="number" class="score-input" data-round="${roundCount}" data-player="2"></td>
+                <td><input type="number" class="score-input" data-round="${roundCount}" data-player="3"></td>
+                <td><button class="delete-row-btn">×</button></td>
+            `;
+            tbody.appendChild(newRow);
+            roundCount++;
+            attachEvents();
+        });
+
+        // イベントハンドラを再アタッチ
+        function attachEvents() {
+            // 入力時の合計計算
+            document.querySelectorAll('.score-input').forEach(input => {
+                input.removeEventListener('input', updateTotals);
+                input.addEventListener('input', updateTotals);
+            });
+            // 行削除
+            document.querySelectorAll('.delete-row-btn').forEach(btn => {
+                btn.removeEventListener('click', deleteRow);
+                btn.addEventListener('click', deleteRow);
+            });
+        }
+
+        // 合計計算
+        function updateTotals() {
+            for (let p = 0; p < 4; p++) {
+                let total = 0;
+                document.querySelectorAll(`.score-input[data-player="${p}"]`).forEach(input => {
+                    const val = parseInt(input.value) || 0;
+                    total += val;
+                });
+                const cell = document.querySelector(`.total-cell[data-player="${p}"]`);
+                cell.textContent = total > 0 ? '+' + total : total;
+                cell.style.color = total > 0 ? '#1B3F80' : total < 0 ? '#C03A22' : '#505050';
+            }
+        }
+
+        // 行削除
+        function deleteRow(e) {
+            const tbody = document.getElementById('score-tbody');
+            if (tbody.children.length <= 1) {
+                showMessage('最低1半荘は必要です', 'error');
+                return;
+            }
+            e.target.closest('tr').remove();
+            updateTotals();
+        }
+
+        // リセット
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            if (!confirm('入力内容をリセットしますか？')) return;
+            document.querySelectorAll('.score-input').forEach(input => input.value = '');
+            document.querySelectorAll('.player-select').forEach(sel => sel.value = '');
+            updateTotals();
+            showMessage('リセットしました', 'success');
+        });
+
+        // 保存
+        document.getElementById('save-btn').addEventListener('click', async () => {
+            if (!confirm('この内容で保存しますか？')) return;
+
+            const playedDate = document.getElementById('played-date').value;
+            if (!playedDate) {
+                showMessage('対局日を入力してください', 'error');
+                return;
+            }
+
+            // プレイヤー情報
+            const players = [];
+            const playerSelects = document.querySelectorAll('.player-select');
+            for (const sel of playerSelects) {
+                if (!sel.value) {
+                    showMessage('全てのプレイヤーを選択してください', 'error');
+                    return;
+                }
+                const selected = sel.options[sel.selectedIndex];
+                players.push({
+                    user_id: parseInt(sel.value),
+                    nickname: selected.dataset.nickname
+                });
+            }
+
+            // 半荘データ
+            const rounds = [];
+            const rows = document.querySelectorAll('#score-tbody tr');
+            for (let i = 0; i < rows.length; i++) {
+                const scores = [];
+                const inputs = rows[i].querySelectorAll('.score-input');
+                for (const input of inputs) {
+                    if (input.value === '') {
+                        showMessage(`半荘${i + 1}に未入力があります`, 'error');
+                        return;
+                    }
+                    scores.push(parseInt(input.value));
+                }
+                // 合計が0かチェック
+                if (scores.reduce((a, b) => a + b, 0) !== 0) {
+                    showMessage(`半荘${i + 1}の合計が0になっていません`, 'error');
+                    return;
+                }
+                rounds.push({ round_number: i + 1, scores: scores });
+            }
+
+           // サーバーに送信
+            try {
+                const groupId = document.getElementById('group-select').value;
+                const response = await fetch('/score-manage/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        played_date: playedDate,
+                        group_id: groupId,
+                        players: players,
+                        rounds: rounds
+                    })
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    showMessage(result.message, 'success');
+                } else {
+                    showMessage(result.message, 'error');
+                }
+            } catch (err) {
+                showMessage('通信エラー: ' + err.message, 'error');
+            }
+        });
+
+        // メッセージ表示
+        function showMessage(text, type) {
+            const box = document.getElementById('message-box');
+            box.textContent = text;
+            box.className = 'message-box ' + type;
+            setTimeout(() => {
+                box.textContent = '';
+                box.className = 'message-box';
+            }, 3000);
+        }
+
+        // 初回イベント登録
+        attachEvents();
+    </script>
+</body>
+</html>
