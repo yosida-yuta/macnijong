@@ -16,14 +16,15 @@
 </div>
 
 <h1>麻雀 点数計算</h1>
+
 <p>手牌の画像をアップロードしてください。仮判定の動作確認用です。</p>
 
 <div class="upload">
 
 {{ url_for('score') }}
-<input type="file" name="image" accept="image/*" required>
-<br><br>
-<button type="submit" class="menu-btn">解析する</button>
+  <input type="file" name="image" accept="image/*" required>
+  <br><br>
+  <button type="submit" class="menu-btn">解析する</button>
 </form>
 
 </div>
