@@ -1,8 +1,13 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Macni雀 - 点数計算</title>
+{{ url_for('static', filename='css/style.css') }}
+</head>
+<body>
 
-{% block title %}点数計算 - Macni雀{% endblock %}
-
-{% block content %}
 <div class="container">
 
     <div class="header">
@@ -31,4 +36,6 @@
     {% endif %}
 
 </div>
-{% endblock %}
+
+</body>
+</html>
