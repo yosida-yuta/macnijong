@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Macni雀 - 点数計算</title>
-/static/css/style.css
+/static/css/style.css">
 </head>
 <body>
 
 <div class="container">
 
 <div class="header">
-/menu
+/menuログアウト</a>
 <span class="nickname">{{ nickname }}</span>
 </div>
 
@@ -19,7 +19,7 @@
 <p>手牌の画像をアップロードしてください。仮判定の動作確認用です。</p>
 
 <div class="upload">
-/score
+{{ url_for('score') }}
 <input type="file" name="image" accept="image/*" required>
 <br><br>
 <button type="submit" class="menu-btn">解析する</button>
@@ -29,9 +29,9 @@
 {% if result %}
 <div class="result-card">
 <h2>結果</h2>
-<p>🀄 役: {{ result.yaku }}</p>
-<p>🎯 翻数: {{ result.han }}</p>
-<p>💰 点数: {{ result.cost }} 点</p>
+<p>役: {{ result.yaku }}</p>
+<p>翻数: {{ result.han }}</p>
+<p>点数: {{ result.cost }} 点</p>
 </div>
 {% endif %}
 
