@@ -689,23 +689,36 @@ def score():
     result = None
 
     if request.method == "POST":
+        # 画像保存（実用前提なので保存だけしておく）
         image = request.files.get("image")
         if image:
             os.makedirs("static/uploads", exist_ok=True)
-            image.save("static/uploads/" + secure_filename(image.filename))
+            image.save(
+                "static/uploads/" + secure_filename(image.filename)
+            )
 
+        # =========================================
+        # 仮判定（Macni雀 中間発表モード）
+        # =========================================
         calculator = HandCalculator()
-        tiles = TilesConverter.string_to_136_array(
-            man="234",
-            pin="567",
-            sou="678",
-            honors="5555",
-        )
-        win_tile = TilesConverter.string_to_136_array(sou="6")[0]
 
+        # ✅ 14枚版（上がり牌を含む）の手牌
+        tiles = TilesConverter.string_to_136_array(
+            man="233445",
+            pin="567",
+            sou="22678"
+        )
+
+        # ✅ 上がり牌（5万）
+        win_tile = TilesConverter.string_to_136_array(man="5")[0]
+
+        # ✅ ツモあがり
         config = HandConfig(is_tsumo=True)
+
+        # ✅ 点数計算
         calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
 
+        # ✅ 結果を画面表示用に整形
         result = {
             "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
             "han": calc.han or "なし",
@@ -717,7 +730,6 @@ def score():
         result=result,
         nickname=session.get("nickname", "")
     )
-
 
 # ============================================
 # AIテスト
