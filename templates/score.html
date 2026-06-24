@@ -3,21 +3,35 @@
 <head>
     <meta charset="utf-8">
     <title>点数計算 - Macni雀</title>
+    <style>
+        body { font-family: sans-serif; margin: 30px; }
+        .container { max-width: 600px; margin: auto; }
+        form { margin-top: 20px; }
+        button { padding: 8px 16px; font-size: 16px; cursor: pointer; }
+        .result { margin-top: 30px; padding: 16px; background: #f3f3f3; border-radius: 6px; }
+    </style>
 </head>
 <body>
-    <h1>麻雀の点数を計算</h1>
+
+<div class="container">
+    <h1>麻雀 点数計算</h1>
+    <p>手牌の画像をアップロードしてください。仮判定の動作確認用です。</p>
 
     /score" enctype="multipart/form-data">
-        <label>手牌の画像をアップロード:</label><br>
-        <input type="file" name="image" accept="image/*" required><br><br>
+        <input type="file" name="image" accept="image/*" required>
+        <br><br>
         <button type="submit">解析する</button>
     </form>
 
     {% if result %}
-    <h2>結果</h2>
-    <p>🀄 役: {{ result.yaku }}</p>
-    <p>🎯 翻数: {{ result.han }}</p>
-    <p>💰 点数: {{ result.cost }} 点</p>
+    <div class="result">
+        <h2>結果</h2>
+        <p>🀄 役: {{ result.yaku }}</p>
+        <p>🎯 翻数: {{ result.han }}</p>
+        <p>💰 点数: {{ result.cost }} 点</p>
+    </div>
     {% endif %}
+</div>
+
 </body>
 </html>
