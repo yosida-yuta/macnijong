@@ -1027,6 +1027,9 @@ button:hover {
     gap: 8px;
 }
 
+
+
+
 @media (max-width: 600px) {
     .tab-btn {
         padding: 10px 12px;
@@ -1037,4 +1040,98 @@ button:hover {
     .request-actions {
         flex-direction: column;
     }
+}
+
+
+
+
+.score-form {
+  margin-bottom: 20px;
+}
+
+.upload-area, .preview-area, .detected-area, .card, .point-area {
+  margin: 20px 0;
+}
+
+.preview-img {
+  max-width: 400px;
+  border-radius: 10px;
+}
+
+.file-info {
+  color: #555;
+  margin-top: 5px;
+}
+
+.detected-area .tile-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+}
+
+.detected-area .tile-list li {
+  background: #eee;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.detected-area .missing {
+  color: red;
+  font-weight: bold;
+}
+
+.manual-select-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.manual-select {
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.card {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.result-card {
+  background: #fffaf2;
+  border: 1px solid #f7c97a;
+}
+
+.point-area {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.point-card {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.json-area {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  overflow-x: auto;
+}
+
+@media (max-width: 600px) {
+  .point-area {
+    grid-template-columns: 1fr;
+  }
 }
