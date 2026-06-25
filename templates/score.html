@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <title>Macni雀 - 点数計算</title>
 
-<!-- CSS の読み込み -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<!-- CSS 読み込み -->
+{{ url_for('static', filename='css/style.css') }}
 
 <style>
 .score-wrap {
@@ -22,8 +22,9 @@
 }
 
 .card-box {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.15);
+  background: #fff;
+  color: #000; /* 🔥 文字を黒に */
+  border: 1px solid rgba(0,0,0,0.1);
   border-radius: 12px;
   padding: 20px;
   margin: 16px 0;
@@ -32,12 +33,12 @@
 .upload-input {
   display: block;
   margin: 12px 0;
-  color: #fff;
+  color: #000;
 }
 
 .file-status {
   margin: 8px 0;
-  color: #d6e4cf;
+  color: #555;
 }
 
 .preview-img {
@@ -64,7 +65,7 @@
 }
 
 .missing {
-  color: #ff8a80;
+  color: #c62828;
   font-weight: bold;
   margin: 12px 0;
 }
@@ -112,8 +113,9 @@
 }
 
 .result-box {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.15);
+  background: #fff;
+  color: #000; /* 🔥 結果カードも黒文字 */
+  border: 1px solid rgba(0,0,0,0.1);
   border-radius: 12px;
   padding: 18px;
 }
@@ -154,9 +156,8 @@
 
 <div class="container">
 
-  <!-- ヘッダー -->
   <div class="header">
-    <a href="{{ url_for('menu') }}" class="back-btn">← メニュー</a>
+    {{ url_for('menu') }}← メニュー</a>
     <span class="nickname">{{ nickname }}</span>
   </div>
 
@@ -164,7 +165,6 @@
 
     <h1 class="score-title">🀄 点数計算（AI連携 v3.0）</h1>
 
-    <!-- アップロード -->
     <div class="card-box">
       <form method="POST" enctype="multipart/form-data">
 
