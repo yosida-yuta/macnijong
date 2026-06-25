@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <title>Macni雀 - 点数計算</title>
-{{ url_for('static', filename='css/style.css') }}
+
+<!-- CSS の読み込み -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
 <style>
 .score-wrap {
   max-width: 800px;
@@ -103,6 +106,7 @@
   gap: 16px;
   margin-top: 20px;
 }
+
 @media (max-width: 600px) {
   .result-grid { grid-template-columns: 1fr; }
 }
@@ -150,8 +154,9 @@
 
 <div class="container">
 
+  <!-- ヘッダー -->
   <div class="header">
-    {{ url_for('menu') }}
+    <a href="{{ url_for('menu') }}" class="back-btn">← メニュー</a>
     <span class="nickname">{{ nickname }}</span>
   </div>
 
