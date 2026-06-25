@@ -796,38 +796,48 @@ def score():
                 saved_path=saved_path,
             )
 
+       # ===========================================
+        # mahjong による点数計算（子のツモあがり）
         # ===========================================
-        # 14枚そろった → mahjong で点数計算
-        # ===========================================
-        tiles_man = tiles_pin = tiles_sou = tiles_honors = ""
-        for tile in detected_tiles[:14]:
-            num, kind = tile[0], tile[1]
-            if kind == "m": tiles_man += num
-            if kind == "p": tiles_pin += num
-            if kind == "s": tiles_sou += num
-            if kind == "z": tiles_honors += num
-
         calculator = HandCalculator()
+
         tiles = TilesConverter.string_to_136_array(
             man=tiles_man,
             pin=tiles_pin,
             sou=tiles_sou,
             honors=tiles_honors
         )
-        win_tile = TilesConverter.string_to_136_array(man=tiles_man[-1])[0] if tiles_man else TilesConverter.string_to_136_array(sou="1")[0]
-        config = HandConfig(is_tsumo=True)
-        calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
 
-        if calc.cost:
-            main = calc.cost["main"]
-            additional = calc.cost["additional"]
+        win_tile = TilesConverter.string_to_136_array(man=tiles_man[-1])[0] if tiles_man else TilesConverter.string_to_136_array(sou="1")[0]
+
+        # 子のツモあがり
+        config_child = HandConfig(is_tsumo=True)
+        calc_child = calculator.estimate_hand_value(tiles, win_tile, config=config_child)
+
+        # 親のツモあがり（is_dealer=True で計算する）
+        config_dealer = HandConfig(is_tsumo=True, is_dealer=True)
+        calc_dealer = calculator.estimate_hand_value(tiles, win_tile, config=config_dealer)
+
+        # ===========================================
+        # 子のツモあがりの計算
+        # ===========================================
+        if calc_child.cost:
+            main = calc_child.cost["main"]
+            additional = calc_child.cost["additional"]
+
             child_main = main
             child_add = additional
             child_total = main + additional * 2
-            dealer_each = main * 2
-            dealer_total = dealer_each * 3
         else:
             child_main = child_add = child_total = "計算不可"
+
+        # ===========================================
+        # 親のツモあがりの計算
+        # ===========================================
+        if calc_dealer.cost:
+            dealer_each = calc_dealer.cost["main"]
+            dealer_total = dealer_each * 3
+        else:
             dealer_each = dealer_total = "計算不可"
 
         result = {
