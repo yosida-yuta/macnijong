@@ -700,65 +700,72 @@ def score():
         prev_path = request.form.get("saved_path", "").strip()
 
         if new_image and new_image.filename:
+            # 新しい画像 → 完全リセット
             os.makedirs("static/uploads", exist_ok=True)
             saved_path = "static/uploads/" + secure_filename(new_image.filename)
             new_image.save(saved_path)
+            detected_tiles_str = ""    # ← detected をリセット
         elif prev_path:
             saved_path = prev_path
+            # 前回の detected_tiles を引き継ぐ
+            detected_tiles_str = request.form.get("detected_tiles_str", "")
         else:
             return render_template("score.html", error="ファイルを選択してください")
 
         image_url = "/" + saved_path
 
-        # Roboflow に送信
-        try:
-            with open(saved_path, "rb") as f:
-                image_data = base64.b64encode(f.read()).decode("utf-8")
-            response = requests.post(
-                "https://detect.roboflow.com/mahjong-baq4s-m192l/1?api_key=dc4irmHEIZ2kRioxALz2",
-                data=image_data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-                verify=False
-            )
-            ai_result = response.json()
-        except Exception as e:
-            ai_result = {"error": str(e)}
+        # 既存の detected_tiles を復元
+        detected_tiles = detected_tiles_str.split(",") if detected_tiles_str else []
+        detected_pretty = [{"type":"keep","num":t[0],"short":t} for t in detected_tiles]
 
-        # Roboflow → mahjong に変換
-        class_map = {
-            "1C":("man","1"),"2C":("man","2"),"3C":("man","3"),
-            "4C":("man","4"),"5C":("man","5"),"6C":("man","6"),
-            "7C":("man","7"),"8C":("man","8"),"9C":("man","9"),
-            "1D":("pin","1"),"2D":("pin","2"),"3D":("pin","3"),
-            "4D":("pin","4"),"5D":("pin","5"),"6D":("pin","6"),
-            "7D":("pin","7"),"8D":("pin","8"),"9D":("pin","9"),
-            "1B":("sou","1"),"2B":("sou","2"),"3B":("sou","3"),
-            "4B":("sou","4"),"5B":("sou","5"),"6B":("sou","6"),
-            "7B":("sou","7"),"8B":("sou","8"),"9B":("sou","9"),
-            "EW":("honors","1"),"SW":("honors","2"),
-            "WW":("honors","3"),"NW":("honors","4"),
-            "WD":("honors","5"),"GD":("honors","6"),"RD":("honors","7"),
-        }
+        # === ① 新規アップロード時のみ AI判定する ===
+        if new_image and new_image.filename:
+            try:
+                with open(saved_path, "rb") as f:
+                    image_data = base64.b64encode(f.read()).decode("utf-8")
+                response = requests.post(
+                    "https://detect.roboflow.com/mahjong-baq4s-m192l/1?api_key=dc4irmHEIZ2kRioxALz2",
+                    data=image_data,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    verify=False
+                )
+                ai_result = response.json()
+            except Exception as e:
+                ai_result = {"error": str(e)}
 
-        detected_tiles = []
-        if ai_result and "predictions" in ai_result:
-            preds_sorted = sorted(ai_result["predictions"], key=lambda p: p["x"])
-            for p in preds_sorted:
-                cls = p["class"]
-                if cls in class_map:
-                    kind, num = class_map[cls]
-                    short = f"{num}{ {'man':'m','pin':'p','sou':'s','honors':'z'}[kind] }"
-                    detected_tiles.append(short)
-                    detected_pretty.append({"type":kind,"num":num,"short":short})
+            class_map = {
+                "1C":("man","1"),"2C":("man","2"),"3C":("man","3"),
+                "4C":("man","4"),"5C":("man","5"),"6C":("man","6"),
+                "7C":("man","7"),"8C":("man","8"),"9C":("man","9"),
+                "1D":("pin","1"),"2D":("pin","2"),"3D":("pin","3"),
+                "4D":("pin","4"),"5D":("pin","5"),"6D":("pin","6"),
+                "7D":("pin","7"),"8D":("pin","8"),"9D":("pin","9"),
+                "1B":("sou","1"),"2B":("sou","2"),"3B":("sou","3"),
+                "4B":("sou","4"),"5B":("sou","5"),"6B":("sou","6"),
+                "7B":("sou","7"),"8B":("sou","8"),"9B":("sou","9"),
+                "EW":("honors","1"),"SW":("honors","2"),
+                "WW":("honors","3"),"NW":("honors","4"),
+                "WD":("honors","5"),"GD":("honors","6"),"RD":("honors","7"),
+            }
 
-        # 手動補完
+            if ai_result and "predictions" in ai_result:
+                preds_sorted = sorted(ai_result["predictions"], key=lambda p: p["x"])
+                for p in preds_sorted:
+                    cls = p["class"]
+                    if cls in class_map:
+                        kind, num = class_map[cls]
+                        short = f"{num}{ {'man':'m','pin':'p','sou':'s','honors':'z'}[kind] }"
+                        detected_tiles.append(short)
+                        detected_pretty.append({"type":kind,"num":num,"short":short})
+
+        # === ② 手動補完 ===
         manual_tiles = request.form.getlist("manual_tile")
         for t in manual_tiles:
             if t:
                 detected_tiles.append(t)
                 detected_pretty.append({"type":"manual","num":t[0],"short":t})
 
-        # 14枚未満 → 補完UIへ
+        # === ③ 14枚未満 → 補完UI ===
         if len(detected_tiles) < 14:
             need_more = 14 - len(detected_tiles)
             return render_template(
@@ -768,24 +775,25 @@ def score():
                 ai_tiles=ai_result,
                 image_url=image_url,
                 saved_path=saved_path,
+                detected_tiles_str=",".join(detected_tiles),
             )
 
-        # 上がり牌のUI表示が必要か判定
+        # === ④ 上がり牌が指定済み? ===
         win_tile_choice = request.form.get("win_tile", "").strip()
 
         if not win_tile_choice:
-            pick_win_tile = True
             return render_template(
                 "score.html",
-                pick_win_tile=pick_win_tile,
+                pick_win_tile=True,
                 detected=detected_pretty,
                 ai_tiles=ai_result,
                 image_url=image_url,
                 saved_path=saved_path,
                 tiles_14=detected_tiles[:14],
+                detected_tiles_str=",".join(detected_tiles),
             )
 
-        # 14枚そろった + 上がり牌指定済み
+        # === ⑤ 14枚 + 上がり牌 → mahjong に渡す ===
         tiles_man = tiles_pin = tiles_sou = tiles_honors = ""
         for tile in detected_tiles[:14]:
             num, kind = tile[0], tile[1]
@@ -794,7 +802,6 @@ def score():
             elif kind == "s": tiles_sou += num
             elif kind == "z": tiles_honors += num
 
-        # 上がり牌
         num, kind = win_tile_choice[0], win_tile_choice[1]
         win_tile = TilesConverter.string_to_136_array(**{
             "man": num if kind=="m" else "",
@@ -808,9 +815,7 @@ def score():
             man=tiles_man, pin=tiles_pin, sou=tiles_sou, honors=tiles_honors
         )
 
-        # ツモ
         calc_tsumo = calculator.estimate_hand_value(tiles, win_tile, config=HandConfig(is_tsumo=True))
-        # ロン
         calc_ron = calculator.estimate_hand_value(tiles, win_tile, config=HandConfig(is_tsumo=False))
 
         if calc_tsumo.cost:
@@ -829,8 +834,7 @@ def score():
             ron_child = calc_ron.cost["main"]
             ron_dealer = ron_child * 6 // 4
         else:
-            ron_child = "計算不可"
-            ron_dealer = "計算不可"
+            ron_child = ron_dealer = "計算不可"
 
         result = {
             "yaku_tsumo":[str(y) for y in calc_tsumo.yaku] if calc_tsumo.yaku else "なし",
@@ -850,18 +854,6 @@ def score():
             "ai_tiles": ai_result,
             "win_tile": win_tile_choice,
         }
-
-    return render_template(
-        "score.html",
-        result=result,
-        need_more=need_more,
-        detected=detected_pretty,
-        ai_tiles=ai_result,
-        image_url=image_url,
-        saved_path=saved_path,
-        nickname=session.get("nickname", ""),
-        pick_win_tile=pick_win_tile if 'pick_win_tile' in locals() else False,
-    )
 # ============================================
 # AIテスト
 # ============================================

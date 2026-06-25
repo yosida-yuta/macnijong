@@ -4,24 +4,114 @@
 <meta charset="UTF-8">
 <title>Macni雀 - 点数計算</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+.score-wrap {
+  max-width: 800px;
+  margin: 30px auto;
+  padding: 0 16px;
+  color: #fff;
+}
+.card-box, .result-box {
+  background: #fff;
+  color: #000;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 16px 0;
+}
+.tile-list {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  list-style: none; padding: 0; margin: 12px 0;
+}
+.tile-list li {
+  background: #2e7d32;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: bold;
+}
+.btn-primary {
+  background: #2e7d32;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+}
+.btn-primary:hover {
+  background: #1b5e20;
+}
+.hand-tags {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+}
+.hand-tags span {
+  background: #2e7d32;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 12px;
+}
+@media (max-width: 600px) {
+  .result-grid { grid-template-columns: 1fr; }
+}
+.json-pre {
+  background: #111;
+  color: #b9f6ca;
+  padding: 12px;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 200px;
+  font-size: 13px;
+}
+.missing {
+  color: #c62828;
+  font-weight: bold;
+}
+.manual-select-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.manual-select {
+  background: #1e1e1e;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 6px 10px;
+  min-width: 110px;
+}
+.preview-img {
+  max-width: 300px;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+</style>
 </head>
 <body>
 
 <div class="container">
 
   <div class="header">
-    {{ url_for('menu') }}
+    <a href="{{ url_for('menu') }}">← メニュー</a>
     <span class="nickname">{{ nickname }}</span>
   </div>
 
-  <div style="max-width:800px; margin:30px auto;">
+  <div class="score-wrap">
 
-    <h1 style="text-align:center;">🀄 点数計算 v3.5</h1>
+    <h1 style="text-align:center;">🀄 点数計算（AI連携 v3.5）</h1>
 
-    <div style="background:#fff;color:#000;border-radius:12px;padding:16px;margin:16px 0;">
+    <!-- アップロード + フォーム -->
+    <div class="card-box">
       <form method="POST" enctype="multipart/form-data">
 
-        <p><b>画像のアップロード</b></p>
+        <p><b>📤 画像のアップロード</b></p>
         <input type="file" name="image">
 
         {% if saved_path %}
@@ -31,52 +121,61 @@
         {% endif %}
 
         {% if image_url %}
+          <img class="preview-img" src="{{ image_url }}">
           <input type="hidden" name="saved_path" value="{{ saved_path }}">
-          <img src="{{ image_url }}" style="max-width:300px;border-radius:6px;">
         {% endif %}
+
+        <!-- 検出済み牌の保持（ループ防止用） -->
+        <input type="hidden" name="detected_tiles_str" value="{{ detected_tiles_str | default('') }}">
 
         {% if need_more %}
           <hr>
-          <h3>AIが検出した牌（{{ detected|length }} / 14）</h3>
+          <h3>🤖 AIが検出した牌（{{ detected|length }} / 14）</h3>
 
           {% if detected %}
-            <ul style="display:flex;gap:6px;flex-wrap:wrap;list-style:none;padding:0;">
-              {% for d in detected %}<li style="background:#2e7d32;color:#fff;padding:4px 8px;border-radius:6px;">{{ d.short }}</li>{% endfor %}
+            <ul class="tile-list">
+              {% for d in detected %}
+                <li>{{ d.short }}</li>
+              {% endfor %}
             </ul>
+          {% else %}
+            <p>検出できた牌はありません</p>
           {% endif %}
 
-          <p style="color:red;"><b>不足分: {{ need_more }} 枚</b></p>
+          <p class="missing">不足分: {{ need_more }} 枚 → 下で選択してください</p>
 
-          {% for i in range(need_more) %}
-            <select name="manual_tile">
-              <option value="">-- 牌を選択 --</option>
-              <optgroup label="萬子">
-                {% for n in range(1,10) %}<option value="{{n}}m">{{n}}萬</option>{% endfor %}
-              </optgroup>
-              <optgroup label="筒子">
-                {% for n in range(1,10) %}<option value="{{n}}p">{{n}}筒</option>{% endfor %}
-              </optgroup>
-              <optgroup label="索子">
-                {% for n in range(1,10) %}<option value="{{n}}s">{{n}}索</option>{% endfor %}
-              </optgroup>
-              <optgroup label="字牌">
-                <option value="1z">東</option>
-                <option value="2z">南</option>
-                <option value="3z">西</option>
-                <option value="4z">北</option>
-                <option value="5z">白</option>
-                <option value="6z">發</option>
-                <option value="7z">中</option>
-              </optgroup>
-            </select>
-          {% endfor %}
+          <div class="manual-select-row">
+            {% for i in range(need_more) %}
+              <select class="manual-select" name="manual_tile">
+                <option value="">-- 牌を選択 --</option>
+                <optgroup label="萬子">
+                  {% for n in range(1,10) %}<option value="{{n}}m">{{n}}萬</option>{% endfor %}
+                </optgroup>
+                <optgroup label="筒子">
+                  {% for n in range(1,10) %}<option value="{{n}}p">{{n}}筒</option>{% endfor %}
+                </optgroup>
+                <optgroup label="索子">
+                  {% for n in range(1,10) %}<option value="{{n}}s">{{n}}索</option>{% endfor %}
+                </optgroup>
+                <optgroup label="字牌">
+                  <option value="1z">東</option>
+                  <option value="2z">南</option>
+                  <option value="3z">西</option>
+                  <option value="4z">北</option>
+                  <option value="5z">白</option>
+                  <option value="6z">發</option>
+                  <option value="7z">中</option>
+                </optgroup>
+              </select>
+            {% endfor %}
+          </div>
 
         {% elif pick_win_tile %}
           <hr>
           <h3>14枚そろいました 🎉</h3>
           <p>上がり牌を選んでください</p>
 
-          <select name="win_tile" required>
+          <select name="win_tile" class="manual-select" required>
             <option value="">-- 上がり牌を選択 --</option>
             {% for t in tiles_14 %}
               <option value="{{ t }}">{{ t }}</option>
@@ -85,53 +184,70 @@
         {% endif %}
 
         <br><br>
-        <button type="submit" style="background:#2e7d32;color:#fff;padding:10px 20px;border:none;border-radius:8px;">解析する</button>
+        <button type="submit" class="btn-primary">解析する</button>
       </form>
     </div>
 
+    {% if ai_tiles %}
+    <div class="card-box">
+      <h3>🛰 Roboflow JSON</h3>
+      <pre class="json-pre">{{ ai_tiles }}</pre>
+    </div>
+    {% endif %}
+
     {% if result %}
-    <div style="background:#fff;color:#000;border-radius:12px;padding:16px;margin:16px 0;">
-      <h3>📋 結果（ツモ）</h3>
-      <p>役: {{ result.yaku_tsumo }}</p>
-      <p>翻数: {{ result.han_tsumo }}</p>
-      <p>符: {{ result.fu_tsumo }}</p>
-      <p>上がり牌: {{ result.win_tile }}</p>
-    </div>
+    <div class="card-box">
+      <h3>📋 結果（ツモ和了）</h3>
+      <p><b>役:</b> {{ result.yaku_tsumo }}</p>
+      <p><b>翻数:</b> {{ result.han_tsumo }}</p>
+      <p><b>符:</b> {{ result.fu_tsumo }}</p>
+      <p><b>上がり牌:</b> {{ result.win_tile }}</p>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div style="background:#fff;color:#000;border-radius:12px;padding:16px;">
-        <h3>親があがった場合（ツモ）</h3>
-        <p>子が払う: {{ result.dealer_each }} 点</p>
-        <p>合計: {{ result.dealer_total }} 点</p>
-      </div>
-      <div style="background:#fff;color:#000;border-radius:12px;padding:16px;">
-        <h3>子があがった場合（ツモ）</h3>
-        <p>親が払う: {{ result.child_main }} 点</p>
-        <p>子が払う: {{ result.child_add }} 点</p>
-        <p>合計: {{ result.child_total }} 点</p>
+      <p style="margin-top:12px;"><b>使用した手牌:</b></p>
+      <div class="hand-tags">
+        {% for t in result.tiles_used %}
+          <span>{{ t }}</span>
+        {% endfor %}
       </div>
     </div>
 
-    <div style="background:#fff;color:#000;border-radius:12px;padding:16px;margin:16px 0;">
-      <h3>📋 結果（ロン）</h3>
-      <p>役: {{ result.yaku_ron }}</p>
-      <p>翻数: {{ result.han_ron }}</p>
-      <p>符: {{ result.fu_ron }}</p>
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>👑 親があがった場合（ツモ）</h3>
+        <p>子が払う点数: <b>{{ result.dealer_each }}</b> 点</p>
+        <p>合計: <b>{{ result.dealer_total }}</b> 点</p>
+      </div>
+
+      <div class="result-box">
+        <h3>🧑 子があがった場合（ツモ）</h3>
+        <p>親が払う点数: <b>{{ result.child_main }}</b> 点</p>
+        <p>子が払う点数: <b>{{ result.child_add }}</b> 点</p>
+        <p>合計: <b>{{ result.child_total }}</b> 点</p>
+      </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div style="background:#fff;color:#000;border-radius:12px;padding:16px;">
-        <h3>親があがった場合（ロン）</h3>
-        <p>振込者が払う: {{ result.ron_dealer }} 点</p>
+    <div class="card-box">
+      <h3>📋 結果（ロン和了）</h3>
+      <p><b>役:</b> {{ result.yaku_ron }}</p>
+      <p><b>翻数:</b> {{ result.han_ron }}</p>
+      <p><b>符:</b> {{ result.fu_ron }}</p>
+    </div>
+
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>👑 親があがった場合（ロン）</h3>
+        <p>振込者が払う点数: <b>{{ result.ron_dealer }}</b> 点</p>
       </div>
-      <div style="background:#fff;color:#000;border-radius:12px;padding:16px;">
-        <h3>子があがった場合（ロン）</h3>
-        <p>振込者が払う: {{ result.ron_child }} 点</p>
+
+      <div class="result-box">
+        <h3>🧑 子があがった場合（ロン）</h3>
+        <p>振込者が払う点数: <b>{{ result.ron_child }}</b> 点</p>
       </div>
     </div>
     {% endif %}
 
   </div>
+
 </div>
 
 </body>
