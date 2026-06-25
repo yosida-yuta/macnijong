@@ -689,40 +689,51 @@ def score():
     result = None
 
     if request.method == "POST":
-        # 画像保存（実用前提なので保存だけしておく）
+        # 画像保存
         image = request.files.get("image")
         if image:
             os.makedirs("static/uploads", exist_ok=True)
-            image.save(
-                "static/uploads/" + secure_filename(image.filename)
-            )
+            image.save("static/uploads/" + secure_filename(image.filename))
 
         # =========================================
-        # 仮判定（Macni雀 中間発表モード）
+        # 仮判定（Macni雀 中間発表モード版）
         # =========================================
         calculator = HandCalculator()
 
-        # ✅ 14枚版（上がり牌を含む）の手牌
+        # 14枚版（上がり牌を含む）
         tiles = TilesConverter.string_to_136_array(
             man="233445",
             pin="567",
             sou="22678"
         )
 
-        # ✅ 上がり牌（5万）
+        # 上がり牌（5万）
         win_tile = TilesConverter.string_to_136_array(man="5")[0]
 
-        # ✅ ツモあがり
-        config = HandConfig(is_tsumo=True)
+        # ① 子・ツモあがり
+        config_child = HandConfig(is_tsumo=True, is_dealer=False)
+        calc_child = calculator.estimate_hand_value(tiles, win_tile, config=config_child)
 
-        # ✅ 点数計算
-        calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
+        # ② 親・ツモあがり
+        config_dealer = HandConfig(is_tsumo=True, is_dealer=True)
+        calc_dealer = calculator.estimate_hand_value(tiles, win_tile, config=config_dealer)
 
-        # ✅ 結果を画面表示用に整形
         result = {
-            "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
-            "han": calc.han or "なし",
-            "cost": calc.cost["main"] if calc.cost else "計算できず",
+            "yaku": [str(y) for y in calc_child.yaku] if calc_child.yaku else "なし",
+            "han": calc_child.han or "なし",
+            "fu": calc_child.fu or "なし",
+
+            # 子のツモあがり
+            "child_main": calc_child.cost["main"] if calc_child.cost else None,
+            "child_add": calc_child.cost["additional"] if calc_child.cost else None,
+            "child_total": (
+                calc_child.cost["main"] + calc_child.cost["additional"] * 2
+                if calc_child.cost else None
+            ),
+
+            # 親のツモあがり
+            "dealer_each": calc_dealer.cost["main"] if calc_dealer.cost else None,
+            "dealer_total": calc_dealer.cost["main"] * 3 if calc_dealer.cost else None,
         }
 
     return render_template(
