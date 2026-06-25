@@ -695,18 +695,16 @@ def score():
 
     if request.method == "POST":
         # ===========================================
-        # 画像の保持（再選択しない限り消えない）
+        # 画像の保持
         # ===========================================
         new_image = request.files.get("image")
         prev_path = request.form.get("saved_path", "").strip()
 
         if new_image and new_image.filename:
-            # 新しい画像がアップされた
             os.makedirs("static/uploads", exist_ok=True)
             saved_path = "static/uploads/" + secure_filename(new_image.filename)
             new_image.save(saved_path)
         elif prev_path:
-            # 前回の画像を再利用
             saved_path = prev_path
         else:
             return render_template(
@@ -740,15 +738,12 @@ def score():
             "1C":("man","1"),"2C":("man","2"),"3C":("man","3"),
             "4C":("man","4"),"5C":("man","5"),"6C":("man","6"),
             "7C":("man","7"),"8C":("man","8"),"9C":("man","9"),
-
             "1D":("pin","1"),"2D":("pin","2"),"3D":("pin","3"),
             "4D":("pin","4"),"5D":("pin","5"),"6D":("pin","6"),
             "7D":("pin","7"),"8D":("pin","8"),"9D":("pin","9"),
-
             "1B":("sou","1"),"2B":("sou","2"),"3B":("sou","3"),
             "4B":("sou","4"),"5B":("sou","5"),"6B":("sou","6"),
             "7B":("sou","7"),"8B":("sou","8"),"9B":("sou","9"),
-
             "EW":("honors","1"),"SW":("honors","2"),
             "WW":("honors","3"),"NW":("honors","4"),
             "WD":("honors","5"),"GD":("honors","6"),"RD":("honors","7"),
@@ -783,7 +778,7 @@ def score():
                 })
 
         # ===========================================
-        # 14枚未満 → 補完UIに進む
+        # 14枚未満 → 補完UIへ
         # ===========================================
         if len(detected_tiles) < 14:
             need_more = 14 - len(detected_tiles)
@@ -796,7 +791,27 @@ def score():
                 saved_path=saved_path,
             )
 
-       # ===========================================
+        # ===========================================
+        # 14枚そろった → mahjong に渡す手牌を作る
+        # ===========================================
+        tiles_man = ""
+        tiles_pin = ""
+        tiles_sou = ""
+        tiles_honors = ""
+
+        for tile in detected_tiles[:14]:
+            num = tile[0]
+            kind = tile[1]
+            if kind == "m":
+                tiles_man += num
+            elif kind == "p":
+                tiles_pin += num
+            elif kind == "s":
+                tiles_sou += num
+            elif kind == "z":
+                tiles_honors += num
+
+        # ===========================================
         # mahjong による点数計算（子のツモあがり）
         # ===========================================
         calculator = HandCalculator()
@@ -808,42 +823,44 @@ def score():
             honors=tiles_honors,
         )
 
-        win_tile = TilesConverter.string_to_136_array(man=tiles_man[-1])[0] if tiles_man else TilesConverter.string_to_136_array(sou="1")[0]
-
-        # Macni雀 では mahjong 1.4.0 を使用しているので
-        # 「子のツモあがり」をベースに親 / 子の点数を計算する
+        if tiles_man:
+            win_tile = TilesConverter.string_to_136_array(man=tiles_man[-1])[0]
+        elif tiles_pin:
+            win_tile = TilesConverter.string_to_136_array(pin=tiles_pin[-1])[0]
+        elif tiles_sou:
+            win_tile = TilesConverter.string_to_136_array(sou=tiles_sou[-1])[0]
+        else:
+            win_tile = TilesConverter.string_to_136_array(honors=tiles_honors[-1])[0]
 
         config = HandConfig(is_tsumo=True)
         calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
 
         if calc.cost:
-            main = calc.cost["main"]            # 子のツモのとき、親が払う点数
-            additional = calc.cost["additional"] # 子のツモのとき、子が払う点数
+            main = calc.cost["main"]
+            additional = calc.cost["additional"]
 
-            # 子のツモあがり
             child_main = main
             child_add = additional
             child_total = main + additional * 2
 
-            # 親のツモあがり = 子のツモの "main" × 2（麻雀的に正しい）
             dealer_each = main * 2
             dealer_total = dealer_each * 3
         else:
             child_main = child_add = child_total = "計算不可"
             dealer_each = dealer_total = "計算不可"
 
-                result = {
-                    "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
-                    "han": calc.han or "なし",
-                    "fu": calc.fu or "なし",
-                    "child_main": child_main,
-                    "child_add": child_add,
-                    "child_total": child_total,
-                    "dealer_each": dealer_each,
-                    "dealer_total": dealer_total,
-                    "tiles_used": detected_tiles[:14],
-                    "ai_tiles": ai_result,
-                }
+        result = {
+            "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
+            "han": calc.han or "なし",
+            "fu": calc.fu or "なし",
+            "child_main": child_main,
+            "child_add": child_add,
+            "child_total": child_total,
+            "dealer_each": dealer_each,
+            "dealer_total": dealer_total,
+            "tiles_used": detected_tiles[:14],
+            "ai_tiles": ai_result,
+        }
 
     return render_template(
         "score.html",
