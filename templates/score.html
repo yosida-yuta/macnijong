@@ -9,17 +9,17 @@
 <h1>Macni雀 点数計算（AI連携 v3.0）</h1>
 
 <form method="POST" enctype="multipart/form-data">
-  {% if not image_url %}
-    <input type="file" name="image" required>
-  {% else %}
-    <p>選択中の画像: {{ saved_path.split("/")[-1] }}</p>
+  <input type="file" name="image">
+
+  {% if image_url %}
+    <p>選択中の画像:</p>
     <img src="{{ image_url }}" style="max-width:400px;">
     <input type="hidden" name="saved_path" value="{{ saved_path }}">
   {% endif %}
 
   {% if need_more %}
     <hr>
-    <h3>AIが検出した牌</h3>
+    <h3>AIが検出した牌（{{ detected|length }}枚 / 14枚）</h3>
     {% if detected %}
       <ul>
         {% for d in detected %}
@@ -30,10 +30,7 @@
       <p>検出できた牌はありません</p>
     {% endif %}
 
-    <hr>
-    <p>合計: {{ detected|length }} 枚 / 14枚</p>
-    <p>足りない {{ need_more }} 枚を選択してください。</p>
-
+    <p>不足分: {{ need_more }} 枚</p>
     {% for i in range(need_more) %}
       <select name="manual_tile">
         <option value="">-- 牌を選択 --</option>
@@ -63,6 +60,12 @@
   <button type="submit">解析する</button>
 </form>
 
+{% if ai_tiles %}
+<hr>
+<h3>AI が読み取った牌（Roboflow JSON）</h3>
+<pre>{{ ai_tiles }}</pre>
+{% endif %}
+
 {% if result %}
 <hr>
 <h2>結果</h2>
@@ -84,10 +87,6 @@
 <p>親が払う点数: {{ result.child_main }} 点</p>
 <p>子が払う点数: {{ result.child_add }} 点</p>
 <p>合計: {{ result.child_total }} 点</p>
-
-<hr>
-<h3>AI が読み取った牌（Roboflow JSON）</h3>
-<pre>{{ result.ai_tiles }}</pre>
 {% endif %}
 
 </body>

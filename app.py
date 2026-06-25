@@ -688,29 +688,37 @@ def matching_reject(request_id):
 def score():
     result = None
     need_more = None
-    detected_tiles = []
-    saved_path = None
+    detected_pretty = []
     image_url = None
+    saved_path = None
+    ai_result = None
 
     if request.method == "POST":
         # ===========================================
-        # ① まず画像を保存
+        # 画像の保持（再選択しない限り消えない）
         # ===========================================
-        image = request.files.get("image")
-        saved_path = request.form.get("saved_path", "")  # 前回保存した画像を保持
+        new_image = request.files.get("image")
+        prev_path = request.form.get("saved_path", "").strip()
 
-        if image:
+        if new_image and new_image.filename:
+            # 新しい画像がアップされた
             os.makedirs("static/uploads", exist_ok=True)
-            saved_path = "static/uploads/" + secure_filename(image.filename)
-            image.save(saved_path)
+            saved_path = "static/uploads/" + secure_filename(new_image.filename)
+            new_image.save(saved_path)
+        elif prev_path:
+            # 前回の画像を再利用
+            saved_path = prev_path
+        else:
+            return render_template(
+                "score.html",
+                error="ファイルを選択してください"
+            )
 
-        if saved_path:
-            image_url = "/" + saved_path
+        image_url = "/" + saved_path
 
         # ===========================================
-        # ② Roboflow に画像送信
+        # Roboflow に画像送信
         # ===========================================
-        ai_result = None
         try:
             with open(saved_path, "rb") as f:
                 image_data = base64.b64encode(f.read()).decode("utf-8")
@@ -726,24 +734,27 @@ def score():
             ai_result = {"error": str(e)}
 
         # ===========================================
-        # ③ AI結果 → 14枚の手牌に変換
+        # Roboflow の結果を mahjong に変換
         # ===========================================
         class_map = {
             "1C":("man","1"),"2C":("man","2"),"3C":("man","3"),
             "4C":("man","4"),"5C":("man","5"),"6C":("man","6"),
             "7C":("man","7"),"8C":("man","8"),"9C":("man","9"),
+
             "1D":("pin","1"),"2D":("pin","2"),"3D":("pin","3"),
             "4D":("pin","4"),"5D":("pin","5"),"6D":("pin","6"),
             "7D":("pin","7"),"8D":("pin","8"),"9D":("pin","9"),
+
             "1B":("sou","1"),"2B":("sou","2"),"3B":("sou","3"),
             "4B":("sou","4"),"5B":("sou","5"),"6B":("sou","6"),
             "7B":("sou","7"),"8B":("sou","8"),"9B":("sou","9"),
+
             "EW":("honors","1"),"SW":("honors","2"),
             "WW":("honors","3"),"NW":("honors","4"),
             "WD":("honors","5"),"GD":("honors","6"),"RD":("honors","7"),
         }
 
-        detected_pretty = []
+        detected_tiles = []
         if ai_result and "predictions" in ai_result:
             preds_sorted = sorted(ai_result["predictions"], key=lambda p: p["x"])
             for p in preds_sorted:
@@ -755,11 +766,11 @@ def score():
                     detected_pretty.append({
                         "type": kind,
                         "num": num,
-                        "short": short
+                        "short": short,
                     })
 
         # ===========================================
-        # ④ 手動補完の追加
+        # 手動補完
         # ===========================================
         manual_tiles = request.form.getlist("manual_tile")
         for t in manual_tiles:
@@ -768,11 +779,11 @@ def score():
                 detected_pretty.append({
                     "type": "manual",
                     "num": t[0],
-                    "short": t
+                    "short": t,
                 })
 
         # ===========================================
-        # ⑤ 14枚に達していなければ補完UIへ
+        # 14枚未満 → 補完UIに進む
         # ===========================================
         if len(detected_tiles) < 14:
             need_more = 14 - len(detected_tiles)
@@ -786,9 +797,9 @@ def score():
             )
 
         # ===========================================
-        # ⑥ mahjong による点数計算
+        # 14枚そろった → mahjong で点数計算
         # ===========================================
-        tiles_man, tiles_pin, tiles_sou, tiles_honors = "", "", "", ""
+        tiles_man = tiles_pin = tiles_sou = tiles_honors = ""
         for tile in detected_tiles[:14]:
             num, kind = tile[0], tile[1]
             if kind == "m": tiles_man += num
@@ -798,7 +809,10 @@ def score():
 
         calculator = HandCalculator()
         tiles = TilesConverter.string_to_136_array(
-            man=tiles_man, pin=tiles_pin, sou=tiles_sou, honors=tiles_honors
+            man=tiles_man,
+            pin=tiles_pin,
+            sou=tiles_sou,
+            honors=tiles_honors
         )
         win_tile = TilesConverter.string_to_136_array(man=tiles_man[-1])[0] if tiles_man else TilesConverter.string_to_136_array(sou="1")[0]
         config = HandConfig(is_tsumo=True)
@@ -813,14 +827,10 @@ def score():
             dealer_each = main * 2
             dealer_total = dealer_each * 3
         else:
-            child_main = "計算不可"
-            child_add = "計算不可"
-            child_total = "計算不可"
-            dealer_each = "計算不可"
-            dealer_total = "計算不可"
+            child_main = child_add = child_total = "計算不可"
+            dealer_each = dealer_total = "計算不可"
 
         result = {
-            "ai_tiles": ai_result,
             "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
             "han": calc.han or "なし",
             "fu": calc.fu or "なし",
@@ -830,13 +840,15 @@ def score():
             "dealer_each": dealer_each,
             "dealer_total": dealer_total,
             "tiles_used": detected_tiles[:14],
+            "ai_tiles": ai_result,
         }
 
     return render_template(
         "score.html",
         result=result,
         need_more=need_more,
-        detected=detected_tiles,
+        detected=detected_pretty,
+        ai_tiles=ai_result,
         image_url=image_url,
         saved_path=saved_path,
         nickname=session.get("nickname", "")
