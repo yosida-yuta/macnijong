@@ -11,8 +11,13 @@
 <form method="POST" enctype="multipart/form-data">
   <input type="file" name="image">
 
+  {% if saved_path %}
+    <p>選択中の画像: {{ saved_path.split("/")[-1] }}</p>
+  {% else %}
+    <p>選択されていません</p>
+  {% endif %}
+
   {% if image_url %}
-    <p>選択中の画像:</p>
     <img src="{{ image_url }}" style="max-width:400px;">
     <input type="hidden" name="saved_path" value="{{ saved_path }}">
   {% endif %}
