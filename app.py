@@ -720,26 +720,71 @@ def score():
         except Exception as e:
             ai_result = {"error": str(e)}
 
-        # ===========================================
-        # ③ Roboflow の結果 → mahjong の手牌に変換
+       # ===========================================
+        # Roboflow → mahjong 用の手牌に変換
         # ===========================================
         tiles_man = ""
         tiles_pin = ""
         tiles_sou = ""
         tiles_honors = ""
 
+        class_map = {
+            # 萬子 (C)
+            "1C": ("man", "1"),
+            "2C": ("man", "2"),
+            "3C": ("man", "3"),
+            "4C": ("man", "4"),
+            "5C": ("man", "5"),
+            "6C": ("man", "6"),
+            "7C": ("man", "7"),
+            "8C": ("man", "8"),
+            "9C": ("man", "9"),
+
+            # 筒子 (D)
+            "1D": ("pin", "1"),
+            "2D": ("pin", "2"),
+            "3D": ("pin", "3"),
+            "4D": ("pin", "4"),
+            "5D": ("pin", "5"),
+            "6D": ("pin", "6"),
+            "7D": ("pin", "7"),
+            "8D": ("pin", "8"),
+            "9D": ("pin", "9"),
+
+            # 索子 (B)
+            "1B": ("sou", "1"),
+            "2B": ("sou", "2"),
+            "3B": ("sou", "3"),
+            "4B": ("sou", "4"),
+            "5B": ("sou", "5"),
+            "6B": ("sou", "6"),
+            "7B": ("sou", "7"),
+            "8B": ("sou", "8"),
+            "9B": ("sou", "9"),
+
+            # 字牌
+            "EW": ("honors", "1"),  # 東
+            "SW": ("honors", "2"),  # 南
+            "WW": ("honors", "3"),  # 西
+            "NW": ("honors", "4"),  # 北
+            "WD": ("honors", "5"),  # 白
+            "GD": ("honors", "6"),  # 發
+            "RD": ("honors", "7"),  # 中
+        }
+
         if ai_result and "predictions" in ai_result:
             for pred in ai_result["predictions"]:
                 cls = pred["class"]
-
-                if cls.endswith("m"):
-                    tiles_man += cls[0]
-                elif cls.endswith("p"):
-                    tiles_pin += cls[0]
-                elif cls.endswith("s"):
-                    tiles_sou += cls[0]
-                elif cls.endswith("z"):
-                    tiles_honors += cls[0]
+                if cls in class_map:
+                    kind, num = class_map[cls]
+                    if kind == "man":
+                        tiles_man += num
+                    elif kind == "pin":
+                        tiles_pin += num
+                    elif kind == "sou":
+                        tiles_sou += num
+                    elif kind == "honors":
+                        tiles_honors += num
 
         # 万一AIが牌を読めなかった場合の中間発表モード保険
         if not (tiles_man + tiles_pin + tiles_sou + tiles_honors):
