@@ -701,14 +701,14 @@ def score():
         image.save(saved_path)
 
         # ===========================================
-        # ② Roboflow に画像送信（AI連携）
+        # ② Macni雀 → Roboflow に画像送信
         # ===========================================
         try:
             with open(saved_path, "rb") as f:
                 image_data = base64.b64encode(f.read()).decode("utf-8")
 
             response = requests.post(
-                "https://detect.roboflow.com/mahjong-baq4s/83?api_key=dc4irMHEIzzkRioxALzZ",
+                "https://detect.roboflow.com/mahjong-baq4s-m192l/1?api_key=dc4irmHEIZ2kRioxALz2",
                 data=image_data,
                 headers={
                     "Content-Type": "application/x-www-form-urlencoded"
@@ -721,7 +721,7 @@ def score():
             ai_result = {"error": str(e)}
 
         # ===========================================
-        # ③ AI結果 → mahjong 用の手牌文字列に変換
+        # ③ Roboflow の結果 → mahjong の手牌に変換
         # ===========================================
         tiles_man = ""
         tiles_pin = ""
@@ -732,27 +732,23 @@ def score():
             for pred in ai_result["predictions"]:
                 cls = pred["class"]
 
-                # 萬子
                 if cls.endswith("m"):
                     tiles_man += cls[0]
-                # 筒子
                 elif cls.endswith("p"):
                     tiles_pin += cls[0]
-                # 索子
                 elif cls.endswith("s"):
                     tiles_sou += cls[0]
-                # 字牌（東1z, 南2z, 西3z, 北4z, 白5z, 發6z, 中7z）
                 elif cls.endswith("z"):
                     tiles_honors += cls[0]
 
-        # 万一 AI が0個しか牌を返さなかった場合の中間発表モード安全策
+        # 万一AIが牌を読めなかった場合の中間発表モード保険
         if not (tiles_man + tiles_pin + tiles_sou + tiles_honors):
             tiles_man = "233445"
             tiles_pin = "567"
             tiles_sou = "22678"
 
         # ===========================================
-        # ④ mahjong に渡して点数計算（中間発表モード仕様）
+        # ④ mahjong による点数計算
         # ===========================================
         calculator = HandCalculator()
 
@@ -763,26 +759,22 @@ def score():
             honors=tiles_honors
         )
 
-        # 上がり牌は仮で「萬子の5」
-        # 中間発表モードでは最終的にUIで選択可能にできるが、まずは固定
         win_tile = TilesConverter.string_to_136_array(man="5")[0]
 
         config = HandConfig(is_tsumo=True)
         calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
 
         # ===========================================
-        # ⑤ 点数の計算（親 / 子の同時表示）
+        # ⑤ 親 / 子の点数計算
         # ===========================================
         if calc.cost:
             main = calc.cost["main"]
             additional = calc.cost["additional"]
 
-            # 子のツモあがり
             child_main = main
             child_add = additional
             child_total = main + additional * 2
 
-            # 親のツモあがり
             dealer_each = main * 2
             dealer_total = dealer_each * 3
         else:
@@ -793,7 +785,7 @@ def score():
             dealer_total = "計算不可"
 
         # ===========================================
-        # ⑥ 結果まとめ（Macni雀 v2.0）
+        # ⑥ 中間発表モード結果まとめ
         # ===========================================
         result = {
             "ai_tiles": ai_result,
