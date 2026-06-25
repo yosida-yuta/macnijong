@@ -689,35 +689,42 @@ def score():
     result = None
 
     if request.method == "POST":
-        # 画像保存
+        # 画像保存（実用前提なので保存だけしておく）
         image = request.files.get("image")
         if image:
             os.makedirs("static/uploads", exist_ok=True)
-            image.save("static/uploads/" + secure_filename(image.filename))
+            image.save(
+                "static/uploads/" + secure_filename(image.filename)
+            )
 
         # =========================================
         # 仮判定（Macni雀 中間発表モード版）
         # =========================================
         calculator = HandCalculator()
 
-        # 14枚版（上がり牌を含む）
+        # ✅ 14枚版（上がり牌を含む）
         tiles = TilesConverter.string_to_136_array(
             man="233445",
             pin="567",
             sou="22678"
         )
 
-        # 上がり牌（5万）
+        # ✅ 上がり牌（5万）
         win_tile = TilesConverter.string_to_136_array(man="5")[0]
 
-        # ① 子・ツモあがり
+        # ✅ 子・ツモあがり
         config_child = HandConfig(is_tsumo=True, is_dealer=False)
-        calc_child = calculator.estimate_hand_value(tiles, win_tile, config=config_child)
+        calc_child = calculator.estimate_hand_value(
+            tiles, win_tile, config=config_child
+        )
 
-        # ② 親・ツモあがり
+        # ✅ 親・ツモあがり
         config_dealer = HandConfig(is_tsumo=True, is_dealer=True)
-        calc_dealer = calculator.estimate_hand_value(tiles, win_tile, config=config_dealer)
+        calc_dealer = calculator.estimate_hand_value(
+            tiles, win_tile, config=config_dealer
+        )
 
+        # 結果を統合
         result = {
             "yaku": [str(y) for y in calc_child.yaku] if calc_child.yaku else "なし",
             "han": calc_child.han or "なし",
