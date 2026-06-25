@@ -16,27 +16,7 @@
   <button type="submit">解析する</button>
 </form>
 
-{% if result %}
-<hr>
-<h2>結果</h2>
 
-<p>役: {{ result.yaku }}</p>
-<p>翻数: {{ result.han }}</p>
-<p>符: {{ result.fu }}</p>
-
-<hr>
-
-<h3>親があがった場合（ツモ）</h3>
-<p>子が払う点数: {{ result.dealer_each }} 点</p>
-<p>合計: {{ result.dealer_total }} 点</p>
-
-<hr>
-
-<h3>子があがった場合（ツモ）</h3>
-<p>親が払う点数: {{ result.child_main }} 点</p>
-<p>子が払う点数: {{ result.child_add }} 点</p>
-<p>合計: {{ result.child_total }} 点</p>
-{% endif %}
 
 </body>
 </html>
