@@ -692,11 +692,10 @@ def score():
     image_url = None
     saved_path = None
     ai_result = None
+    pick_win_tile = False
 
     if request.method == "POST":
-        # ===========================================
-        # 画像の保持
-        # ===========================================
+        # 画像保持
         new_image = request.files.get("image")
         prev_path = request.form.get("saved_path", "").strip()
 
@@ -707,20 +706,14 @@ def score():
         elif prev_path:
             saved_path = prev_path
         else:
-            return render_template(
-                "score.html",
-                error="ファイルを選択してください"
-            )
+            return render_template("score.html", error="ファイルを選択してください")
 
         image_url = "/" + saved_path
 
-        # ===========================================
-        # Roboflow に画像送信
-        # ===========================================
+        # Roboflow に送信
         try:
             with open(saved_path, "rb") as f:
                 image_data = base64.b64encode(f.read()).decode("utf-8")
-
             response = requests.post(
                 "https://detect.roboflow.com/mahjong-baq4s-m192l/1?api_key=dc4irmHEIZ2kRioxALz2",
                 data=image_data,
@@ -731,9 +724,7 @@ def score():
         except Exception as e:
             ai_result = {"error": str(e)}
 
-        # ===========================================
         # Roboflow → mahjong に変換
-        # ===========================================
         class_map = {
             "1C":("man","1"),"2C":("man","2"),"3C":("man","3"),
             "4C":("man","4"),"5C":("man","5"),"6C":("man","6"),
@@ -758,28 +749,16 @@ def score():
                     kind, num = class_map[cls]
                     short = f"{num}{ {'man':'m','pin':'p','sou':'s','honors':'z'}[kind] }"
                     detected_tiles.append(short)
-                    detected_pretty.append({
-                        "type": kind,
-                        "num": num,
-                        "short": short,
-                    })
+                    detected_pretty.append({"type":kind,"num":num,"short":short})
 
-        # ===========================================
         # 手動補完
-        # ===========================================
         manual_tiles = request.form.getlist("manual_tile")
         for t in manual_tiles:
             if t:
                 detected_tiles.append(t)
-                detected_pretty.append({
-                    "type": "manual",
-                    "num": t[0],
-                    "short": t,
-                })
+                detected_pretty.append({"type":"manual","num":t[0],"short":t})
 
-        # ===========================================
         # 14枚未満 → 補完UIへ
-        # ===========================================
         if len(detected_tiles) < 14:
             need_more = 14 - len(detected_tiles)
             return render_template(
@@ -791,55 +770,49 @@ def score():
                 saved_path=saved_path,
             )
 
-        # ===========================================
-        # 14枚そろった → mahjong に渡す手牌を作る
-        # ===========================================
-        tiles_man = ""
-        tiles_pin = ""
-        tiles_sou = ""
-        tiles_honors = ""
+        # 上がり牌のUI表示が必要か判定
+        win_tile_choice = request.form.get("win_tile", "").strip()
 
+        if not win_tile_choice:
+            pick_win_tile = True
+            return render_template(
+                "score.html",
+                pick_win_tile=pick_win_tile,
+                detected=detected_pretty,
+                ai_tiles=ai_result,
+                image_url=image_url,
+                saved_path=saved_path,
+                tiles_14=detected_tiles[:14],
+            )
+
+        # 14枚そろった + 上がり牌指定済み
+        tiles_man = tiles_pin = tiles_sou = tiles_honors = ""
         for tile in detected_tiles[:14]:
-            num = tile[0]
-            kind = tile[1]
-            if kind == "m":
-                tiles_man += num
-            elif kind == "p":
-                tiles_pin += num
-            elif kind == "s":
-                tiles_sou += num
-            elif kind == "z":
-                tiles_honors += num
+            num, kind = tile[0], tile[1]
+            if kind == "m": tiles_man += num
+            elif kind == "p": tiles_pin += num
+            elif kind == "s": tiles_sou += num
+            elif kind == "z": tiles_honors += num
 
-        # ===========================================
-        # mahjong 1.4.0 による点数計算
-        # ===========================================
+        # 上がり牌
+        num, kind = win_tile_choice[0], win_tile_choice[1]
+        win_tile = TilesConverter.string_to_136_array(**{
+            "man": num if kind=="m" else "",
+            "pin": num if kind=="p" else "",
+            "sou": num if kind=="s" else "",
+            "honors": num if kind=="z" else "",
+        })[0]
+
         calculator = HandCalculator()
         tiles = TilesConverter.string_to_136_array(
-            man=tiles_man,
-            pin=tiles_pin,
-            sou=tiles_sou,
-            honors=tiles_honors,
+            man=tiles_man, pin=tiles_pin, sou=tiles_sou, honors=tiles_honors
         )
-
-        if tiles_man:
-            win_tile = TilesConverter.string_to_136_array(man=tiles_man[-1])[0]
-        elif tiles_pin:
-            win_tile = TilesConverter.string_to_136_array(pin=tiles_pin[-1])[0]
-        elif tiles_sou:
-            win_tile = TilesConverter.string_to_136_array(sou=tiles_sou[-1])[0]
-        else:
-            win_tile = TilesConverter.string_to_136_array(honors=tiles_honors[-1])[0]
 
         # ツモ
         calc_tsumo = calculator.estimate_hand_value(tiles, win_tile, config=HandConfig(is_tsumo=True))
-
         # ロン
         calc_ron = calculator.estimate_hand_value(tiles, win_tile, config=HandConfig(is_tsumo=False))
 
-        # ===========================================
-        # 点数の計算（独自）
-        # ===========================================
         if calc_tsumo.cost:
             main = calc_tsumo.cost["main"]
             additional = calc_tsumo.cost["additional"]
@@ -853,37 +826,29 @@ def score():
             dealer_each = dealer_total = "計算不可"
 
         if calc_ron.cost:
-            ron_main = calc_ron.cost["main"]
-            ron_child = ron_main * 4
-            ron_dealer = ron_main * 6
+            ron_child = calc_ron.cost["main"]
+            ron_dealer = ron_child * 6 // 4
         else:
-            ron_main = "計算不可"
             ron_child = "計算不可"
             ron_dealer = "計算不可"
 
-        # ===========================================
-        # 結果まとめ
-        # ===========================================
         result = {
-            "yaku_tsumo": [str(y) for y in calc_tsumo.yaku] if calc_tsumo.yaku else "なし",
+            "yaku_tsumo":[str(y) for y in calc_tsumo.yaku] if calc_tsumo.yaku else "なし",
             "han_tsumo": calc_tsumo.han or "なし",
             "fu_tsumo": calc_tsumo.fu or "なし",
-
-            "yaku_ron": [str(y) for y in calc_ron.yaku] if calc_ron.yaku else "なし",
+            "yaku_ron":[str(y) for y in calc_ron.yaku] if calc_ron.yaku else "なし",
             "han_ron": calc_ron.han or "なし",
             "fu_ron": calc_ron.fu or "なし",
-
             "child_main": child_main,
             "child_add": child_add,
             "child_total": child_total,
             "dealer_each": dealer_each,
             "dealer_total": dealer_total,
-
             "ron_child": ron_child,
             "ron_dealer": ron_dealer,
-
             "tiles_used": detected_tiles[:14],
             "ai_tiles": ai_result,
+            "win_tile": win_tile_choice,
         }
 
     return render_template(
@@ -894,7 +859,8 @@ def score():
         ai_tiles=ai_result,
         image_url=image_url,
         saved_path=saved_path,
-        nickname=session.get("nickname", "")
+        nickname=session.get("nickname", ""),
+        pick_win_tile=pick_win_tile if 'pick_win_tile' in locals() else False,
     )
 # ============================================
 # AIテスト
