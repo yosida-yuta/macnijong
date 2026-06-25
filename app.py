@@ -693,32 +693,31 @@ def score():
     saved_path = None
     ai_result = None
     pick_win_tile = False
+    detected_tiles = []
+    detected_tiles_str = ""
 
     if request.method == "POST":
-        # 画像保持
         new_image = request.files.get("image")
         prev_path = request.form.get("saved_path", "").strip()
 
         if new_image and new_image.filename:
-            # 新しい画像 → 完全リセット
             os.makedirs("static/uploads", exist_ok=True)
             saved_path = "static/uploads/" + secure_filename(new_image.filename)
             new_image.save(saved_path)
-            detected_tiles_str = ""    # ← detected をリセット
+            detected_tiles_str = ""
         elif prev_path:
             saved_path = prev_path
-            # 前回の detected_tiles を引き継ぐ
             detected_tiles_str = request.form.get("detected_tiles_str", "")
         else:
             return render_template("score.html", error="ファイルを選択してください")
 
         image_url = "/" + saved_path
 
-        # 既存の detected_tiles を復元
+        # 検出済み牌の保持
         detected_tiles = detected_tiles_str.split(",") if detected_tiles_str else []
-        detected_pretty = [{"type":"keep","num":t[0],"short":t} for t in detected_tiles]
+        detected_pretty = [{"type":"keep","num":t[0],"short":t} for t in detected_tiles if t]
 
-        # === ① 新規アップロード時のみ AI判定する ===
+        # 新規アップロード時のみ AI判定
         if new_image and new_image.filename:
             try:
                 with open(saved_path, "rb") as f:
@@ -758,14 +757,14 @@ def score():
                         detected_tiles.append(short)
                         detected_pretty.append({"type":kind,"num":num,"short":short})
 
-        # === ② 手動補完 ===
+        # 手動補完
         manual_tiles = request.form.getlist("manual_tile")
         for t in manual_tiles:
             if t:
                 detected_tiles.append(t)
                 detected_pretty.append({"type":"manual","num":t[0],"short":t})
 
-        # === ③ 14枚未満 → 補完UI ===
+        # 14枚未満 → 補完UI
         if len(detected_tiles) < 14:
             need_more = 14 - len(detected_tiles)
             return render_template(
@@ -776,11 +775,11 @@ def score():
                 image_url=image_url,
                 saved_path=saved_path,
                 detected_tiles_str=",".join(detected_tiles),
+                nickname=session.get("nickname", ""),
             )
 
-        # === ④ 上がり牌が指定済み? ===
+        # 上がり牌の指定がない → 上がり牌UI
         win_tile_choice = request.form.get("win_tile", "").strip()
-
         if not win_tile_choice:
             return render_template(
                 "score.html",
@@ -791,9 +790,10 @@ def score():
                 saved_path=saved_path,
                 tiles_14=detected_tiles[:14],
                 detected_tiles_str=",".join(detected_tiles),
+                nickname=session.get("nickname", ""),
             )
 
-        # === ⑤ 14枚 + 上がり牌 → mahjong に渡す ===
+        # 上がり牌が確定済み → 計算
         tiles_man = tiles_pin = tiles_sou = tiles_honors = ""
         for tile in detected_tiles[:14]:
             num, kind = tile[0], tile[1]
@@ -854,6 +854,19 @@ def score():
             "ai_tiles": ai_result,
             "win_tile": win_tile_choice,
         }
+
+    # ★ GET時にもここで必ず render_template を返す（500 完全対策）
+    return render_template(
+        "score.html",
+        result=result,
+        need_more=need_more,
+        detected=detected_pretty,
+        ai_tiles=ai_result,
+        image_url=image_url,
+        saved_path=saved_path,
+        nickname=session.get("nickname", ""),
+        pick_win_tile=pick_win_tile,
+    )
 # ============================================
 # AIテスト
 # ============================================
