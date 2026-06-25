@@ -805,53 +805,45 @@ def score():
             man=tiles_man,
             pin=tiles_pin,
             sou=tiles_sou,
-            honors=tiles_honors
+            honors=tiles_honors,
         )
 
         win_tile = TilesConverter.string_to_136_array(man=tiles_man[-1])[0] if tiles_man else TilesConverter.string_to_136_array(sou="1")[0]
 
-        # 子のツモあがり
-        config_child = HandConfig(is_tsumo=True)
-        calc_child = calculator.estimate_hand_value(tiles, win_tile, config=config_child)
+        # Macni雀 では mahjong 1.4.0 を使用しているので
+        # 「子のツモあがり」をベースに親 / 子の点数を計算する
 
-        # 親のツモあがり（is_dealer=True で計算する）
-        config_dealer = HandConfig(is_tsumo=True, is_dealer=True)
-        calc_dealer = calculator.estimate_hand_value(tiles, win_tile, config=config_dealer)
+        config = HandConfig(is_tsumo=True)
+        calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
 
-        # ===========================================
-        # 子のツモあがりの計算
-        # ===========================================
-        if calc_child.cost:
-            main = calc_child.cost["main"]
-            additional = calc_child.cost["additional"]
+        if calc.cost:
+            main = calc.cost["main"]            # 子のツモのとき、親が払う点数
+            additional = calc.cost["additional"] # 子のツモのとき、子が払う点数
 
+            # 子のツモあがり
             child_main = main
             child_add = additional
             child_total = main + additional * 2
-        else:
-            child_main = child_add = child_total = "計算不可"
 
-        # ===========================================
-        # 親のツモあがりの計算
-        # ===========================================
-        if calc_dealer.cost:
-            dealer_each = calc_dealer.cost["main"]
+            # 親のツモあがり = 子のツモの "main" × 2（麻雀的に正しい）
+            dealer_each = main * 2
             dealer_total = dealer_each * 3
         else:
+            child_main = child_add = child_total = "計算不可"
             dealer_each = dealer_total = "計算不可"
 
-        result = {
-            "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
-            "han": calc.han or "なし",
-            "fu": calc.fu or "なし",
-            "child_main": child_main,
-            "child_add": child_add,
-            "child_total": child_total,
-            "dealer_each": dealer_each,
-            "dealer_total": dealer_total,
-            "tiles_used": detected_tiles[:14],
-            "ai_tiles": ai_result,
-        }
+                result = {
+                    "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
+                    "han": calc.han or "なし",
+                    "fu": calc.fu or "なし",
+                    "child_main": child_main,
+                    "child_add": child_add,
+                    "child_total": child_total,
+                    "dealer_each": dealer_each,
+                    "dealer_total": dealer_total,
+                    "tiles_used": detected_tiles[:14],
+                    "ai_tiles": ai_result,
+                }
 
     return render_template(
         "score.html",
