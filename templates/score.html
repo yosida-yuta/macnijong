@@ -8,15 +8,31 @@
 
 <h1>Macni雀 点数計算（AI連携 v3.0）</h1>
 
-<p>ファイルを選択して、解析するボタンを押してください。</p>
-
 <form method="POST" enctype="multipart/form-data">
-  <input type="file" name="image">
+  {% if not image_url %}
+    <input type="file" name="image" required>
+  {% else %}
+    <p>選択中の画像: {{ saved_path.split("/")[-1] }}</p>
+    <img src="{{ image_url }}" style="max-width:400px;">
+    <input type="hidden" name="saved_path" value="{{ saved_path }}">
+  {% endif %}
 
   {% if need_more %}
     <hr>
-    <p>AIが判定した牌は {{ detected|length }} 枚です。</p>
-    <p>足りない {{ need_more }} 枚を手動で選択してください。</p>
+    <h3>AIが検出した牌</h3>
+    {% if detected %}
+      <ul>
+        {% for d in detected %}
+          <li>{{ d.short }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>検出できた牌はありません</p>
+    {% endif %}
+
+    <hr>
+    <p>合計: {{ detected|length }} 枚 / 14枚</p>
+    <p>足りない {{ need_more }} 枚を選択してください。</p>
 
     {% for i in range(need_more) %}
       <select name="manual_tile">

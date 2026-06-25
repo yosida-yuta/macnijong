@@ -689,86 +689,106 @@ def score():
     result = None
     need_more = None
     detected_tiles = []
+    saved_path = None
+    image_url = None
 
     if request.method == "POST":
         # ===========================================
-        # 画像 or ユーザー入力で14枚を構築
+        # ① まず画像を保存
         # ===========================================
-        manual_tiles = request.form.getlist("manual_tile")
-
-        # 画像があれば AI 判定
         image = request.files.get("image")
-        ai_result = None
+        saved_path = request.form.get("saved_path", "")  # 前回保存した画像を保持
 
         if image:
             os.makedirs("static/uploads", exist_ok=True)
             saved_path = "static/uploads/" + secure_filename(image.filename)
             image.save(saved_path)
 
+        if saved_path:
+            image_url = "/" + saved_path
+
+        # ===========================================
+        # ② Roboflow に画像送信
+        # ===========================================
+        ai_result = None
+        try:
             with open(saved_path, "rb") as f:
                 image_data = base64.b64encode(f.read()).decode("utf-8")
 
-            try:
-                response = requests.post(
-                    "https://detect.roboflow.com/mahjong-baq4s-m192l/1?api_key=dc4irmHEIZ2kRioxALz2",
-                    data=image_data,
-                    headers={"Content-Type": "application/x-www-form-urlencoded"},
-                    verify=False
-                )
-                ai_result = response.json()
-            except Exception as e:
-                ai_result = {"error": str(e)}
+            response = requests.post(
+                "https://detect.roboflow.com/mahjong-baq4s-m192l/1?api_key=dc4irmHEIZ2kRioxALz2",
+                data=image_data,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                verify=False
+            )
+            ai_result = response.json()
+        except Exception as e:
+            ai_result = {"error": str(e)}
 
         # ===========================================
-        # Roboflow → 手牌に変換 (x座標順)
+        # ③ AI結果 → 14枚の手牌に変換
         # ===========================================
         class_map = {
-            "1C": ("man","1"),"2C": ("man","2"),"3C": ("man","3"),
-            "4C": ("man","4"),"5C": ("man","5"),"6C": ("man","6"),
-            "7C": ("man","7"),"8C": ("man","8"),"9C": ("man","9"),
-            "1D": ("pin","1"),"2D": ("pin","2"),"3D": ("pin","3"),
-            "4D": ("pin","4"),"5D": ("pin","5"),"6D": ("pin","6"),
-            "7D": ("pin","7"),"8D": ("pin","8"),"9D": ("pin","9"),
-            "1B": ("sou","1"),"2B": ("sou","2"),"3B": ("sou","3"),
-            "4B": ("sou","4"),"5B": ("sou","5"),"6B": ("sou","6"),
-            "7B": ("sou","7"),"8B": ("sou","8"),"9B": ("sou","9"),
-            "EW": ("honors","1"),"SW": ("honors","2"),
-            "WW": ("honors","3"),"NW": ("honors","4"),
-            "WD": ("honors","5"),"GD": ("honors","6"),"RD": ("honors","7"),
+            "1C":("man","1"),"2C":("man","2"),"3C":("man","3"),
+            "4C":("man","4"),"5C":("man","5"),"6C":("man","6"),
+            "7C":("man","7"),"8C":("man","8"),"9C":("man","9"),
+            "1D":("pin","1"),"2D":("pin","2"),"3D":("pin","3"),
+            "4D":("pin","4"),"5D":("pin","5"),"6D":("pin","6"),
+            "7D":("pin","7"),"8D":("pin","8"),"9D":("pin","9"),
+            "1B":("sou","1"),"2B":("sou","2"),"3B":("sou","3"),
+            "4B":("sou","4"),"5B":("sou","5"),"6B":("sou","6"),
+            "7B":("sou","7"),"8B":("sou","8"),"9B":("sou","9"),
+            "EW":("honors","1"),"SW":("honors","2"),
+            "WW":("honors","3"),"NW":("honors","4"),
+            "WD":("honors","5"),"GD":("honors","6"),"RD":("honors","7"),
         }
 
+        detected_pretty = []
         if ai_result and "predictions" in ai_result:
             preds_sorted = sorted(ai_result["predictions"], key=lambda p: p["x"])
             for p in preds_sorted:
-                if p["class"] in class_map:
-                    kind, num = class_map[p["class"]]
-                    detected_tiles.append(f"{num}{ {'man':'m','pin':'p','sou':'s','honors':'z'}[kind] }")
+                cls = p["class"]
+                if cls in class_map:
+                    kind, num = class_map[cls]
+                    short = f"{num}{ {'man':'m','pin':'p','sou':'s','honors':'z'}[kind] }"
+                    detected_tiles.append(short)
+                    detected_pretty.append({
+                        "type": kind,
+                        "num": num,
+                        "short": short
+                    })
 
-        # ユーザー手動牌があれば追加
+        # ===========================================
+        # ④ 手動補完の追加
+        # ===========================================
+        manual_tiles = request.form.getlist("manual_tile")
         for t in manual_tiles:
             if t:
                 detected_tiles.append(t)
+                detected_pretty.append({
+                    "type": "manual",
+                    "num": t[0],
+                    "short": t
+                })
 
         # ===========================================
-        # 14枚未満ならユーザーに不足を促す
+        # ⑤ 14枚に達していなければ補完UIへ
         # ===========================================
         if len(detected_tiles) < 14:
             need_more = 14 - len(detected_tiles)
             return render_template(
                 "score.html",
                 need_more=need_more,
-                detected=detected_tiles,
+                detected=detected_pretty,
                 ai_tiles=ai_result,
+                image_url=image_url,
+                saved_path=saved_path,
             )
 
         # ===========================================
-        # 14枚そろったので mahjong に渡す
+        # ⑥ mahjong による点数計算
         # ===========================================
-        tiles_man = ""
-        tiles_pin = ""
-        tiles_sou = ""
-        tiles_honors = ""
-
+        tiles_man, tiles_pin, tiles_sou, tiles_honors = "", "", "", ""
         for tile in detected_tiles[:14]:
             num, kind = tile[0], tile[1]
             if kind == "m": tiles_man += num
@@ -778,13 +798,9 @@ def score():
 
         calculator = HandCalculator()
         tiles = TilesConverter.string_to_136_array(
-            man=tiles_man,
-            pin=tiles_pin,
-            sou=tiles_sou,
-            honors=tiles_honors,
+            man=tiles_man, pin=tiles_pin, sou=tiles_sou, honors=tiles_honors
         )
         win_tile = TilesConverter.string_to_136_array(man=tiles_man[-1])[0] if tiles_man else TilesConverter.string_to_136_array(sou="1")[0]
-
         config = HandConfig(is_tsumo=True)
         calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
 
@@ -819,8 +835,10 @@ def score():
     return render_template(
         "score.html",
         result=result,
-        need_more=None,
+        need_more=need_more,
         detected=detected_tiles,
+        image_url=image_url,
+        saved_path=saved_path,
         nickname=session.get("nickname", "")
     )
 
