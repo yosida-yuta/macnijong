@@ -689,7 +689,7 @@ def score():
     result = None
 
     if request.method == "POST":
-        # 画像保存（実用前提なので保存だけしておく）
+        # 画像保存
         image = request.files.get("image")
         if image:
             os.makedirs("static/uploads", exist_ok=True)
@@ -698,49 +698,57 @@ def score():
             )
 
         # =========================================
-        # 仮判定（Macni雀 中間発表モード版）
+        # 仮判定（Macni雀 中間発表モード版・安全版）
         # =========================================
         calculator = HandCalculator()
 
-        # ✅ 14枚版（上がり牌を含む）
         tiles = TilesConverter.string_to_136_array(
             man="233445",
             pin="567",
             sou="22678"
         )
 
-        # ✅ 上がり牌（5万）
         win_tile = TilesConverter.string_to_136_array(man="5")[0]
 
-        # ✅ 子・ツモあがり
+        # 子・ツモあがり
         config_child = HandConfig(is_tsumo=True, is_dealer=False)
         calc_child = calculator.estimate_hand_value(
             tiles, win_tile, config=config_child
         )
 
-        # ✅ 親・ツモあがり
+        # 親・ツモあがり
         config_dealer = HandConfig(is_tsumo=True, is_dealer=True)
         calc_dealer = calculator.estimate_hand_value(
             tiles, win_tile, config=config_dealer
         )
 
-        # 結果を統合
+        # 子の点数（安全版）
+        if calc_child.cost:
+            child_main = calc_child.cost["main"]
+            child_add = calc_child.cost["additional"]
+            child_total = child_main + child_add * 2
+        else:
+            child_main = "計算不可"
+            child_add = "計算不可"
+            child_total = "計算不可"
+
+        # 親の点数（安全版）
+        if calc_dealer.cost:
+            dealer_each = calc_dealer.cost["main"]
+            dealer_total = dealer_each * 3
+        else:
+            dealer_each = "計算不可"
+            dealer_total = "計算不可"
+
         result = {
             "yaku": [str(y) for y in calc_child.yaku] if calc_child.yaku else "なし",
-            "han": calc_child.han or "なし",
-            "fu": calc_child.fu or "なし",
-
-            # 子のツモあがり
-            "child_main": calc_child.cost["main"] if calc_child.cost else None,
-            "child_add": calc_child.cost["additional"] if calc_child.cost else None,
-            "child_total": (
-                calc_child.cost["main"] + calc_child.cost["additional"] * 2
-                if calc_child.cost else None
-            ),
-
-            # 親のツモあがり
-            "dealer_each": calc_dealer.cost["main"] if calc_dealer.cost else None,
-            "dealer_total": calc_dealer.cost["main"] * 3 if calc_dealer.cost else None,
+            "han": calc_child.han if calc_child.han else "なし",
+            "fu": calc_child.fu if calc_child.fu else "なし",
+            "child_main": child_main,
+            "child_add": child_add,
+            "child_total": child_total,
+            "dealer_each": dealer_each,
+            "dealer_total": dealer_total,
         }
 
     return render_template(
