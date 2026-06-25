@@ -238,10 +238,10 @@
 
     {% if result %}
     <div class="card-box">
-      <h3>📋 結果</h3>
-      <p><b>役:</b> {{ result.yaku }}</p>
-      <p><b>翻数:</b> {{ result.han }}</p>
-      <p><b>符:</b> {{ result.fu }}</p>
+      <h3>📋 結果（ツモ和了）</h3>
+      <p><b>役:</b> {{ result.yaku_tsumo }}</p>
+      <p><b>翻数:</b> {{ result.han_tsumo }}</p>
+      <p><b>符:</b> {{ result.fu_tsumo }}</p>
 
       <p style="margin-top:12px;"><b>使用した手牌:</b></p>
       <div class="hand-tags">
@@ -265,8 +265,26 @@
         <p>合計: <b>{{ result.child_total }}</b> 点</p>
       </div>
     </div>
-    {% endif %}
 
+    <div class="card-box">
+      <h3>📋 結果（ロン和了）</h3>
+      <p><b>役:</b> {{ result.yaku_ron }}</p>
+      <p><b>翻数:</b> {{ result.han_ron }}</p>
+      <p><b>符:</b> {{ result.fu_ron }}</p>
+    </div>
+
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>👑 親があがった場合（ロン）</h3>
+        <p>振り込んだ人が払う点数: <b>{{ result.ron_dealer }}</b> 点</p>
+      </div>
+
+      <div class="result-box">
+        <h3>🧑 子があがった場合（ロン）</h3>
+        <p>振り込んだ人が払う点数: <b>{{ result.ron_child }}</b> 点</p>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
 </div>

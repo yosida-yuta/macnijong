@@ -823,6 +823,7 @@ def score():
             honors=tiles_honors,
         )
 
+        # 上がり牌（仮：手牌の最後の牌）
         if tiles_man:
             win_tile = TilesConverter.string_to_136_array(man=tiles_man[-1])[0]
         elif tiles_pin:
@@ -832,47 +833,76 @@ def score():
         else:
             win_tile = TilesConverter.string_to_136_array(honors=tiles_honors[-1])[0]
 
-        config = HandConfig(is_tsumo=True)
-        calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
+        # ===========================================
+        # ツモ和了の計算
+        # ===========================================
+        config_tsumo = HandConfig(is_tsumo=True)
+        calc_tsumo = calculator.estimate_hand_value(tiles, win_tile, config=config_tsumo)
 
-        if calc.cost:
-            main = calc.cost["main"]
-            additional = calc.cost["additional"]
+        # ===========================================
+        # ロン和了の計算
+        # ===========================================
+        config_ron = HandConfig(is_tsumo=False)
+        calc_ron = calculator.estimate_hand_value(tiles, win_tile, config=config_ron)
 
-            child_main = main
-            child_add = additional
+        # ===========================================
+        # 子のツモあがり結果
+        # ===========================================
+        if calc_tsumo.cost:
+            main = calc_tsumo.cost["main"]            # 子のツモのとき、親が払う点数
+            additional = calc_tsumo.cost["additional"] # 子のツモのとき、子が払う点数
+
+            # 子のツモあがり
+            child_main = main                          # 親が払う点数
+            child_add = additional                     # 子が払う点数
             child_total = main + additional * 2
 
-            dealer_each = main * 2
-            dealer_total = dealer_each * 3
+            # 親のツモあがり
+            # 親が上がった場合の子が払う点数 = 子が上がった場合の親が払う点数
+            dealer_each = main
+            dealer_total = main * 3
         else:
             child_main = child_add = child_total = "計算不可"
             dealer_each = dealer_total = "計算不可"
 
+        # ===========================================
+        # ロン和了の結果
+        # ===========================================
+        if calc_ron.cost:
+            ron_main = calc_ron.cost["main"]
+            ron_dealer = ron_main * 6 // 4   # 親のロン点数
+            ron_child = ron_main             # 子のロン点数
+        else:
+            ron_main = "計算不可"
+            ron_dealer = "計算不可"
+            ron_child = "計算不可"
+
+        # ===========================================
+        # 結果まとめ
+        # ===========================================
         result = {
-            "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
-            "han": calc.han or "なし",
-            "fu": calc.fu or "なし",
+            "yaku_tsumo": [str(y) for y in calc_tsumo.yaku] if calc_tsumo.yaku else "なし",
+            "han_tsumo": calc_tsumo.han or "なし",
+            "fu_tsumo": calc_tsumo.fu or "なし",
+
+            "yaku_ron": [str(y) for y in calc_ron.yaku] if calc_ron.yaku else "なし",
+            "han_ron": calc_ron.han or "なし",
+            "fu_ron": calc_ron.fu or "なし",
+
+            # ツモ
             "child_main": child_main,
             "child_add": child_add,
             "child_total": child_total,
             "dealer_each": dealer_each,
             "dealer_total": dealer_total,
+
+            # ロン
+            "ron_dealer": ron_dealer,
+            "ron_child": ron_child,
+
             "tiles_used": detected_tiles[:14],
             "ai_tiles": ai_result,
         }
-
-    return render_template(
-        "score.html",
-        result=result,
-        need_more=need_more,
-        detected=detected_pretty,
-        ai_tiles=ai_result,
-        image_url=image_url,
-        saved_path=saved_path,
-        nickname=session.get("nickname", "")
-    )
-
 # ============================================
 # AIテスト
 # ============================================
