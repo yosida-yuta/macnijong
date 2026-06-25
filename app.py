@@ -697,9 +697,6 @@ def score():
                 "static/uploads/" + secure_filename(image.filename)
             )
 
-        # =========================================
-        # 仮判定（Macni雀 中間発表モード版・安全版）
-        # =========================================
         calculator = HandCalculator()
 
         tiles = TilesConverter.string_to_136_array(
@@ -710,40 +707,35 @@ def score():
 
         win_tile = TilesConverter.string_to_136_array(man="5")[0]
 
-        # 子・ツモあがり
-        config_child = HandConfig(is_tsumo=True, is_dealer=False)
-        calc_child = calculator.estimate_hand_value(
-            tiles, win_tile, config=config_child
+        # ✅ 親/子は使わず、子のツモあがりだけで計算
+        config = HandConfig(is_tsumo=True)
+        calc = calculator.estimate_hand_value(
+            tiles, win_tile, config=config
         )
 
-        # 親・ツモあがり
-        config_dealer = HandConfig(is_tsumo=True, is_dealer=True)
-        calc_dealer = calculator.estimate_hand_value(
-            tiles, win_tile, config=config_dealer
-        )
+        if calc.cost:
+            main = calc.cost["main"]
+            additional = calc.cost["additional"]
 
-        # 子の点数（安全版）
-        if calc_child.cost:
-            child_main = calc_child.cost["main"]
-            child_add = calc_child.cost["additional"]
-            child_total = child_main + child_add * 2
+            # 子のツモあがり
+            child_main = main
+            child_add = additional
+            child_total = main + additional * 2
+
+            # 親のツモあがり = 子の "main" を子の支払い × 3
+            dealer_each = main
+            dealer_total = main * 3
         else:
             child_main = "計算不可"
             child_add = "計算不可"
             child_total = "計算不可"
-
-        # 親の点数（安全版）
-        if calc_dealer.cost:
-            dealer_each = calc_dealer.cost["main"]
-            dealer_total = dealer_each * 3
-        else:
             dealer_each = "計算不可"
             dealer_total = "計算不可"
 
         result = {
-            "yaku": [str(y) for y in calc_child.yaku] if calc_child.yaku else "なし",
-            "han": calc_child.han if calc_child.han else "なし",
-            "fu": calc_child.fu if calc_child.fu else "なし",
+            "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
+            "han": calc.han if calc.han else "なし",
+            "fu": calc.fu if calc.fu else "なし",
             "child_main": child_main,
             "child_add": child_add,
             "child_total": child_total,
