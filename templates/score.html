@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Macni雀 点数計算</title>
+<title>Macni雀 点数計算（AI連携 v2.0）</title>
 </head>
 <body>
 
-<h1>Macni雀 点数計算</h1>
+<h1>Macni雀 点数計算（AI連携 v2.0）</h1>
 
 <p>ファイルを選択して、解析するボタンを押してください。</p>
 
@@ -26,6 +26,14 @@
 
 <hr>
 
+<h3>使用した手牌</h3>
+<p>萬子: {{ result.tiles_used.man }}</p>
+<p>筒子: {{ result.tiles_used.pin }}</p>
+<p>索子: {{ result.tiles_used.sou }}</p>
+<p>字牌: {{ result.tiles_used.honors }}</p>
+
+<hr>
+
 <h3>親があがった場合（ツモ）</h3>
 <p>子が払う点数: {{ result.dealer_each }} 点</p>
 <p>合計: {{ result.dealer_total }} 点</p>
@@ -36,6 +44,12 @@
 <p>親が払う点数: {{ result.child_main }} 点</p>
 <p>子が払う点数: {{ result.child_add }} 点</p>
 <p>合計: {{ result.child_total }} 点</p>
+
+<hr>
+
+<h3>AI が読み取った牌（Roboflow JSON）</h3>
+<pre>{{ result.ai_tiles }}</pre>
+
 {% endif %}
 
 </body>

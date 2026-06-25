@@ -689,30 +689,90 @@ def score():
     result = None
 
     if request.method == "POST":
-        # 画像保存
+        # ===========================================
+        # ① 画像アップロード受け取り & 保存
+        # ===========================================
         image = request.files.get("image")
-        if image:
-            os.makedirs("static/uploads", exist_ok=True)
-            image.save(
-                "static/uploads/" + secure_filename(image.filename)
+        if not image:
+            return "画像がアップロードされていません", 400
+
+        os.makedirs("static/uploads", exist_ok=True)
+        saved_path = "static/uploads/" + secure_filename(image.filename)
+        image.save(saved_path)
+
+        # ===========================================
+        # ② Roboflow に画像送信（AI連携）
+        # ===========================================
+        try:
+            with open(saved_path, "rb") as f:
+                image_data = base64.b64encode(f.read()).decode("utf-8")
+
+            response = requests.post(
+                "https://detect.roboflow.com/mahjong-baq4s/83?api_key=dc4irMHEIzzkRioxALzZ",
+                data=image_data,
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                verify=False
             )
 
+            ai_result = response.json()
+        except Exception as e:
+            ai_result = {"error": str(e)}
+
+        # ===========================================
+        # ③ AI結果 → mahjong 用の手牌文字列に変換
+        # ===========================================
+        tiles_man = ""
+        tiles_pin = ""
+        tiles_sou = ""
+        tiles_honors = ""
+
+        if ai_result and "predictions" in ai_result:
+            for pred in ai_result["predictions"]:
+                cls = pred["class"]
+
+                # 萬子
+                if cls.endswith("m"):
+                    tiles_man += cls[0]
+                # 筒子
+                elif cls.endswith("p"):
+                    tiles_pin += cls[0]
+                # 索子
+                elif cls.endswith("s"):
+                    tiles_sou += cls[0]
+                # 字牌（東1z, 南2z, 西3z, 北4z, 白5z, 發6z, 中7z）
+                elif cls.endswith("z"):
+                    tiles_honors += cls[0]
+
+        # 万一 AI が0個しか牌を返さなかった場合の中間発表モード安全策
+        if not (tiles_man + tiles_pin + tiles_sou + tiles_honors):
+            tiles_man = "233445"
+            tiles_pin = "567"
+            tiles_sou = "22678"
+
+        # ===========================================
+        # ④ mahjong に渡して点数計算（中間発表モード仕様）
+        # ===========================================
         calculator = HandCalculator()
 
         tiles = TilesConverter.string_to_136_array(
-            man="233445",
-            pin="567",
-            sou="22678"
+            man=tiles_man,
+            pin=tiles_pin,
+            sou=tiles_sou,
+            honors=tiles_honors
         )
 
+        # 上がり牌は仮で「萬子の5」
+        # 中間発表モードでは最終的にUIで選択可能にできるが、まずは固定
         win_tile = TilesConverter.string_to_136_array(man="5")[0]
 
-        # ✅ 親/子は使わず、子のツモあがりだけで計算
         config = HandConfig(is_tsumo=True)
-        calc = calculator.estimate_hand_value(
-            tiles, win_tile, config=config
-        )
+        calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
 
+        # ===========================================
+        # ⑤ 点数の計算（親 / 子の同時表示）
+        # ===========================================
         if calc.cost:
             main = calc.cost["main"]
             additional = calc.cost["additional"]
@@ -722,9 +782,9 @@ def score():
             child_add = additional
             child_total = main + additional * 2
 
-            # 親のツモあがり = 子の "main" を子の支払い × 3
-            dealer_each = main
-            dealer_total = main * 3
+            # 親のツモあがり
+            dealer_each = main * 2
+            dealer_total = dealer_each * 3
         else:
             child_main = "計算不可"
             child_add = "計算不可"
@@ -732,7 +792,11 @@ def score():
             dealer_each = "計算不可"
             dealer_total = "計算不可"
 
+        # ===========================================
+        # ⑥ 結果まとめ（Macni雀 v2.0）
+        # ===========================================
         result = {
+            "ai_tiles": ai_result,
             "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
             "han": calc.han if calc.han else "なし",
             "fu": calc.fu if calc.fu else "なし",
@@ -741,6 +805,12 @@ def score():
             "child_total": child_total,
             "dealer_each": dealer_each,
             "dealer_total": dealer_total,
+            "tiles_used": {
+                "man": tiles_man,
+                "pin": tiles_pin,
+                "sou": tiles_sou,
+                "honors": tiles_honors,
+            },
         }
 
     return render_template(
