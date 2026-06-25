@@ -687,94 +687,113 @@ def matching_reject(request_id):
 @app.route("/score", methods=["GET", "POST"])
 def score():
     result = None
+    need_more = None
+    detected_tiles = []
 
     if request.method == "POST":
         # ===========================================
-        # ① 画像アップロード受け取り & 保存
+        # 画像 or ユーザー入力で14枚を構築
         # ===========================================
+        manual_tiles = request.form.getlist("manual_tile")
+
+        # 画像があれば AI 判定
         image = request.files.get("image")
-        if not image:
-            return "画像がアップロードされていません", 400
+        ai_result = None
 
-        os.makedirs("static/uploads", exist_ok=True)
-        saved_path = "static/uploads/" + secure_filename(image.filename)
-        image.save(saved_path)
+        if image:
+            os.makedirs("static/uploads", exist_ok=True)
+            saved_path = "static/uploads/" + secure_filename(image.filename)
+            image.save(saved_path)
 
-        # ===========================================
-        # ② Macni雀 → Roboflow に画像送信
-        # ===========================================
-        try:
             with open(saved_path, "rb") as f:
                 image_data = base64.b64encode(f.read()).decode("utf-8")
 
-            response = requests.post(
-                "https://detect.roboflow.com/mahjong-baq4s-m192l/1?api_key=dc4irmHEIZ2kRioxALz2",
-                data=image_data,
-                headers={
-                    "Content-Type": "application/x-www-form-urlencoded"
-                },
-                verify=False
-            )
-
-            ai_result = response.json()
-        except Exception as e:
-            ai_result = {"error": str(e)}
+            try:
+                response = requests.post(
+                    "https://detect.roboflow.com/mahjong-baq4s-m192l/1?api_key=dc4irmHEIZ2kRioxALz2",
+                    data=image_data,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    verify=False
+                )
+                ai_result = response.json()
+            except Exception as e:
+                ai_result = {"error": str(e)}
 
         # ===========================================
-        # ③ Roboflow の結果 → mahjong の手牌に変換
+        # Roboflow → 手牌に変換 (x座標順)
+        # ===========================================
+        class_map = {
+            "1C": ("man","1"),"2C": ("man","2"),"3C": ("man","3"),
+            "4C": ("man","4"),"5C": ("man","5"),"6C": ("man","6"),
+            "7C": ("man","7"),"8C": ("man","8"),"9C": ("man","9"),
+            "1D": ("pin","1"),"2D": ("pin","2"),"3D": ("pin","3"),
+            "4D": ("pin","4"),"5D": ("pin","5"),"6D": ("pin","6"),
+            "7D": ("pin","7"),"8D": ("pin","8"),"9D": ("pin","9"),
+            "1B": ("sou","1"),"2B": ("sou","2"),"3B": ("sou","3"),
+            "4B": ("sou","4"),"5B": ("sou","5"),"6B": ("sou","6"),
+            "7B": ("sou","7"),"8B": ("sou","8"),"9B": ("sou","9"),
+            "EW": ("honors","1"),"SW": ("honors","2"),
+            "WW": ("honors","3"),"NW": ("honors","4"),
+            "WD": ("honors","5"),"GD": ("honors","6"),"RD": ("honors","7"),
+        }
+
+        if ai_result and "predictions" in ai_result:
+            preds_sorted = sorted(ai_result["predictions"], key=lambda p: p["x"])
+            for p in preds_sorted:
+                if p["class"] in class_map:
+                    kind, num = class_map[p["class"]]
+                    detected_tiles.append(f"{num}{ {'man':'m','pin':'p','sou':'s','honors':'z'}[kind] }")
+
+        # ユーザー手動牌があれば追加
+        for t in manual_tiles:
+            if t:
+                detected_tiles.append(t)
+
+        # ===========================================
+        # 14枚未満ならユーザーに不足を促す
+        # ===========================================
+        if len(detected_tiles) < 14:
+            need_more = 14 - len(detected_tiles)
+            return render_template(
+                "score.html",
+                need_more=need_more,
+                detected=detected_tiles,
+                ai_tiles=ai_result,
+            )
+
+        # ===========================================
+        # 14枚そろったので mahjong に渡す
         # ===========================================
         tiles_man = ""
         tiles_pin = ""
         tiles_sou = ""
         tiles_honors = ""
 
-        if ai_result and "predictions" in ai_result:
-            for pred in ai_result["predictions"]:
-                cls = pred["class"]
+        for tile in detected_tiles[:14]:
+            num, kind = tile[0], tile[1]
+            if kind == "m": tiles_man += num
+            if kind == "p": tiles_pin += num
+            if kind == "s": tiles_sou += num
+            if kind == "z": tiles_honors += num
 
-                if cls.endswith("m"):
-                    tiles_man += cls[0]
-                elif cls.endswith("p"):
-                    tiles_pin += cls[0]
-                elif cls.endswith("s"):
-                    tiles_sou += cls[0]
-                elif cls.endswith("z"):
-                    tiles_honors += cls[0]
-
-        # 万一AIが牌を読めなかった場合の中間発表モード保険
-        if not (tiles_man + tiles_pin + tiles_sou + tiles_honors):
-            tiles_man = "233445"
-            tiles_pin = "567"
-            tiles_sou = "22678"
-
-        # ===========================================
-        # ④ mahjong による点数計算
-        # ===========================================
         calculator = HandCalculator()
-
         tiles = TilesConverter.string_to_136_array(
             man=tiles_man,
             pin=tiles_pin,
             sou=tiles_sou,
-            honors=tiles_honors
+            honors=tiles_honors,
         )
-
-        win_tile = TilesConverter.string_to_136_array(man="5")[0]
+        win_tile = TilesConverter.string_to_136_array(man=tiles_man[-1])[0] if tiles_man else TilesConverter.string_to_136_array(sou="1")[0]
 
         config = HandConfig(is_tsumo=True)
         calc = calculator.estimate_hand_value(tiles, win_tile, config=config)
 
-        # ===========================================
-        # ⑤ 親 / 子の点数計算
-        # ===========================================
         if calc.cost:
             main = calc.cost["main"]
             additional = calc.cost["additional"]
-
             child_main = main
             child_add = additional
             child_total = main + additional * 2
-
             dealer_each = main * 2
             dealer_total = dealer_each * 3
         else:
@@ -784,30 +803,24 @@ def score():
             dealer_each = "計算不可"
             dealer_total = "計算不可"
 
-        # ===========================================
-        # ⑥ 中間発表モード結果まとめ
-        # ===========================================
         result = {
             "ai_tiles": ai_result,
             "yaku": [str(y) for y in calc.yaku] if calc.yaku else "なし",
-            "han": calc.han if calc.han else "なし",
-            "fu": calc.fu if calc.fu else "なし",
+            "han": calc.han or "なし",
+            "fu": calc.fu or "なし",
             "child_main": child_main,
             "child_add": child_add,
             "child_total": child_total,
             "dealer_each": dealer_each,
             "dealer_total": dealer_total,
-            "tiles_used": {
-                "man": tiles_man,
-                "pin": tiles_pin,
-                "sou": tiles_sou,
-                "honors": tiles_honors,
-            },
+            "tiles_used": detected_tiles[:14],
         }
 
     return render_template(
         "score.html",
         result=result,
+        need_more=None,
+        detected=detected_tiles,
         nickname=session.get("nickname", "")
     )
 
