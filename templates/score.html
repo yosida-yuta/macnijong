@@ -19,8 +19,6 @@
   padding: 20px;
   margin: 16px 0;
 }
-
-/* 牌（画像）リスト */
 .tile-list {
   display: flex; flex-wrap: wrap; gap: 8px;
   list-style: none; padding: 0; margin: 12px 0;
@@ -33,7 +31,28 @@
   border-radius: 6px;
   padding: 2px;
 }
-
+.win-tile-picker {
+  display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0;
+}
+.win-tile-picker label {
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 8px;
+}
+.win-tile-picker input[type="radio"] {
+  display: none;
+}
+.win-tile-picker input[type="radio"]:checked + img {
+  border: 3px solid red;
+  border-radius: 6px;
+  background: #2e7d32;
+}
+.win-tile-picker img {
+  width: 50px;
+  background: #2e7d32;
+  border-radius: 6px;
+  padding: 3px;
+}
 .btn-primary {
   background: #2e7d32;
   color: white;
@@ -46,11 +65,9 @@
 .btn-primary:hover {
   background: #1b5e20;
 }
-
 .hand-tags {
   display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
 }
-
 .result-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -60,7 +77,6 @@
 @media (max-width: 600px) {
   .result-grid { grid-template-columns: 1fr; }
 }
-
 .json-pre {
   background: #111;
   color: #b9f6ca;
@@ -70,12 +86,10 @@
   max-height: 200px;
   font-size: 13px;
 }
-
 .missing {
   color: #c62828;
   font-weight: bold;
 }
-
 .manual-select-row {
   display: flex;
   flex-wrap: wrap;
@@ -90,7 +104,6 @@
   padding: 6px 10px;
   min-width: 110px;
 }
-
 .preview-img {
   max-width: 300px;
   border-radius: 8px;
@@ -103,15 +116,14 @@
 <div class="container">
 
   <div class="header">
-    <a href="{{ url_for('menu') }}">← メニュー</a>
+    {{ url_for('menu') }}
     <span class="nickname">{{ nickname }}</span>
   </div>
 
   <div class="score-wrap">
 
-    <h1 style="text-align:center;">🀄 点数計算（AI連携 v3.7）</h1>
+    <h1 style="text-align:center;">🀄 点数計算（AI連携 v3.8）</h1>
 
-    <!-- アップロード + フォーム -->
     <div class="card-box">
       <form method="POST" enctype="multipart/form-data">
 
@@ -125,7 +137,7 @@
         {% endif %}
 
         {% if image_url %}
-          <img class="preview-img" src="{{ image_url }}">
+          {{ image_url }}
           <input type="hidden" name="saved_path" value="{{ saved_path }}">
         {% endif %}
 
@@ -138,7 +150,7 @@
           {% if detected %}
             <ul class="tile-list">
               {% for d in detected %}
-                <li><img src="{{ url_for('static', filename='tiles/' ~ d.short ~ '.png') }}" alt="{{ d.short }}"></li>
+                <li>{{ url_for('static', filename='tiles/' ~ d.short ~ '.png') }}</li>
               {% endfor %}
             </ul>
           {% else %}
@@ -176,14 +188,17 @@
         {% elif pick_win_tile %}
           <hr>
           <h3>14枚そろいました 🎉</h3>
-          <p>上がり牌を選んでください</p>
+          <p>下の牌から「上がり牌」をクリックしてください</p>
 
-          <select name="win_tile" class="manual-select" required>
-            <option value="">-- 上がり牌を選択 --</option>
+          <div class="win-tile-picker">
             {% for t in tiles_14 %}
-              <option value="{{ t }}">{{ t }}</option>
+              <label>
+                <input type="radio" name="win_tile" value="{{ t }}" required>
+                {{ url_for('static', filename='tiles/' ~ t ~ '.png') }}
+              </label>
             {% endfor %}
-          </select>
+          </div>
+
         {% endif %}
 
         <br><br>
@@ -204,16 +219,14 @@
       <p><b>役:</b> {{ result.yaku_tsumo }}</p>
       <p><b>翻数:</b> {{ result.han_tsumo }}</p>
       <p><b>符:</b> {{ result.fu_tsumo }}</p>
-      <p><b>上がり牌:</b> 
-        <img src="{{ url_for('static', filename='tiles/' ~ result.win_tile ~ '.png') }}"
-             alt="{{ result.win_tile }}"
-             style="width:38px; vertical-align:middle; background:#2e7d32; border-radius:6px; padding:2px;">
+      <p><b>上がり牌:</b>
+        {{ url_for('static', filename='tiles/' ~ result.win_tile ~ '.png') }}px; vertical-align:middle; background:#2e7d32; border-radius:6px; padding:2px;">
       </p>
 
       <p style="margin-top:12px;"><b>使用した手牌:</b></p>
       <div class="hand-tags">
         {% for t in result.tiles_used %}
-          <img src="{{ url_for('static', filename='tiles/' ~ t ~ '.png') }}" alt="{{ t }}">
+          {{ url_for('static', filename='tiles/' ~ t ~ '.png') }}
         {% endfor %}
       </div>
     </div>
