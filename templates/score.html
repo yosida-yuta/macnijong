@@ -2,8 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Macni雀 - 点数計算</title>
+<title>Macni雀 - 点数計算 v3.8</title>
+
+<!-- ✅ Macni雀 中間発表モード v3.8 必須: CSS 読み込み -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
 <style>
 .score-wrap {
   max-width: 800px;
@@ -116,7 +119,7 @@
 <div class="container">
 
   <div class="header">
-    {{ url_for('menu') }}
+    <a href="{{ url_for('menu') }}">← メニュー</a>
     <span class="nickname">{{ nickname }}</span>
   </div>
 
@@ -137,7 +140,7 @@
         {% endif %}
 
         {% if image_url %}
-          {{ image_url }}
+          <img class="preview-img" src="{{ image_url }}">
           <input type="hidden" name="saved_path" value="{{ saved_path }}">
         {% endif %}
 
@@ -150,7 +153,7 @@
           {% if detected %}
             <ul class="tile-list">
               {% for d in detected %}
-                <li>{{ url_for('static', filename='tiles/' ~ d.short ~ '.png') }}</li>
+                <li><img src="{{ url_for('static', filename='tiles/' ~ d.short ~ '.png') }}" alt="{{ d.short }}"></li>
               {% endfor %}
             </ul>
           {% else %}
@@ -194,7 +197,7 @@
             {% for t in tiles_14 %}
               <label>
                 <input type="radio" name="win_tile" value="{{ t }}" required>
-                {{ url_for('static', filename='tiles/' ~ t ~ '.png') }}
+                <img src="{{ url_for('static', filename='tiles/' ~ t ~ '.png') }}" alt="{{ t }}">
               </label>
             {% endfor %}
           </div>
@@ -220,13 +223,15 @@
       <p><b>翻数:</b> {{ result.han_tsumo }}</p>
       <p><b>符:</b> {{ result.fu_tsumo }}</p>
       <p><b>上がり牌:</b>
-        {{ url_for('static', filename='tiles/' ~ result.win_tile ~ '.png') }}px; vertical-align:middle; background:#2e7d32; border-radius:6px; padding:2px;">
+        <img src="{{ url_for('static', filename='tiles/' ~ result.win_tile ~ '.png') }}"
+             alt="{{ result.win_tile }}"
+             style="width:38px; vertical-align:middle; background:#2e7d32; border-radius:6px; padding:2px;">
       </p>
 
       <p style="margin-top:12px;"><b>使用した手牌:</b></p>
       <div class="hand-tags">
         {% for t in result.tiles_used %}
-          {{ url_for('static', filename='tiles/' ~ t ~ '.png') }}
+          <img src="{{ url_for('static', filename='tiles/' ~ t ~ '.png') }}" alt="{{ t }}">
         {% endfor %}
       </div>
     </div>
