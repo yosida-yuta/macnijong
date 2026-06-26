@@ -27,13 +27,12 @@
             {% endif %}
         {% endwith %}
 
-        <form method="GET" action="{{ url_for('groups') }}" class="search-form">
-            <input type="text" name="q" placeholder="グループ名・メンバー名で検索" value="{{ search }}" class="search-input">
-            <button type="submit" class="btn-secondary">検索</button>
-            {% if search %}
-                <a href="{{ url_for('groups') }}" class="btn-clear">クリア</a>
-            {% endif %}
-        </form>
+        <div class="search-box">
+            {{ url_for('groups') }}
+                <input type="text" name="q" placeholder="グループ名やメンバーで検索" value="{{ search }}" class="search-input">
+                <button type="submit" class="search-btn">検索</button>
+            </form>
+            </div>
 
         {% if groups %}
             <div class="group-list">
