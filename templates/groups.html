@@ -29,8 +29,13 @@
 
         <div class="search-box">
             {{ url_for('groups') }}
-                <input type="text" name="q" placeholder="グループ名やメンバーで検索"
-                    value="{{ search }}" class="search-input">
+                <input
+                type="text"
+                name="q"
+                placeholder="グループ名やメンバーで検索"
+                value="{{ search }}"
+                class="search-input"
+                >
                 <button type="submit" class="search-btn">検索</button>
             </form>
             </div>
