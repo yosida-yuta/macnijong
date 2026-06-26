@@ -824,13 +824,68 @@ def score():
             "honors": num if kind=="z" else "",
         })[0]
 
-        calculator = HandCalculator()
-        tiles = TilesConverter.string_to_136_array(
-            man=tiles_man, pin=tiles_pin, sou=tiles_sou, honors=tiles_honors
+        # === 状況フラグ取得 ===
+        is_riichi = request.form.get("is_riichi") == "on"
+        is_ippatsu = request.form.get("is_ippatsu") == "on"
+        is_chankan = request.form.get("is_chankan") == "on"
+        is_haitei = request.form.get("is_haitei") == "on"
+        is_houtei = request.form.get("is_houtei") == "on"
+        is_rinshan = request.form.get("is_rinshan") == "on"
+        is_double_riichi = request.form.get("is_double_riichi") == "on"
+
+        dora_count = int(request.form.get("dora_count", "0") or 0)
+        player_wind_str = request.form.get("player_wind", "1z")  # 自風（東=1z）
+        round_wind_str = request.form.get("round_wind", "1z")    # 場風（東=1z）
+
+        # === mahjong 1.4.0 用に風を変換 ===
+        WIND_MAP = {
+            "1z": 27,  # 東
+            "2z": 28,  # 南
+            "3z": 29,  # 西
+            "4z": 30,  # 北
+        }
+        player_wind = WIND_MAP.get(player_wind_str, 27)
+        round_wind = WIND_MAP.get(round_wind_str, 27)
+
+        # === Macni雀 v3.9: mahjong 計算（ツモ） ===
+        calc_tsumo = calculator.estimate_hand_value(
+            tiles, win_tile,
+            config=HandConfig(
+                is_tsumo=True,
+                is_riichi=is_riichi,
+                is_ippatsu=is_ippatsu,
+                is_chankan=is_chankan,
+                is_haitei=is_haitei,
+                is_houtei=is_houtei,
+                is_rinshan=is_rinshan,
+                is_daburu_riichi=is_double_riichi,
+                player_wind=player_wind,
+                round_wind=round_wind
+            )
         )
 
-        calc_tsumo = calculator.estimate_hand_value(tiles, win_tile, config=HandConfig(is_tsumo=True))
-        calc_ron = calculator.estimate_hand_value(tiles, win_tile, config=HandConfig(is_tsumo=False))
+        # === Macni雀 v3.9: mahjong 計算（ロン） ===
+        calc_ron = calculator.estimate_hand_value(
+            tiles, win_tile,
+            config=HandConfig(
+                is_tsumo=False,
+                is_riichi=is_riichi,
+                is_ippatsu=is_ippatsu,
+                is_chankan=is_chankan,
+                is_haitei=is_haitei,
+                is_houtei=is_houtei,
+                is_rinshan=is_rinshan,
+                is_daburu_riichi=is_double_riichi,
+                player_wind=player_wind,
+                round_wind=round_wind
+            )
+        )
+
+        # === ドラを翻数に加算 ===
+        if calc_tsumo.han is not None:
+            calc_tsumo.han += dora_count
+        if calc_ron.han is not None:
+            calc_ron.han += dora_count
 
         # === 子のツモあがり ===
         if calc_tsumo.cost:
