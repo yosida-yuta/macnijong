@@ -28,16 +28,21 @@
         {% endwith %}
 
         <div class="search-box">
-            {{ url_for('groups') }}
-                <input
+            <input
                 type="text"
-                name="q"
+                id="searchInput"
                 placeholder="グループ名やメンバーで検索"
                 value="{{ search }}"
                 class="search-input"
-                >
-                <button type="submit" class="search-btn">検索</button>
-            </form>
+            >
+
+            <button
+                type="button"
+                class="search-btn"
+                onclick="window.location.href='/groups?q=' + encodeURIComponent(document.getElementById('searchInput').value);"
+            >
+                検索
+            </button>
             </div>
 
         {% if groups %}
