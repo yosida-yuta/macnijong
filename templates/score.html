@@ -19,17 +19,21 @@
   padding: 20px;
   margin: 16px 0;
 }
+
+/* 牌（画像）リスト */
 .tile-list {
   display: flex; flex-wrap: wrap; gap: 8px;
   list-style: none; padding: 0; margin: 12px 0;
 }
-.tile-list li {
+.tile-list li img,
+.hand-tags img {
+  width: 38px;
+  height: auto;
   background: #2e7d32;
-  color: white;
-  padding: 4px 10px;
   border-radius: 6px;
-  font-weight: bold;
+  padding: 2px;
 }
+
 .btn-primary {
   background: #2e7d32;
   color: white;
@@ -42,15 +46,11 @@
 .btn-primary:hover {
   background: #1b5e20;
 }
+
 .hand-tags {
   display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
 }
-.hand-tags span {
-  background: #2e7d32;
-  color: #fff;
-  padding: 4px 8px;
-  border-radius: 6px;
-}
+
 .result-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -60,6 +60,7 @@
 @media (max-width: 600px) {
   .result-grid { grid-template-columns: 1fr; }
 }
+
 .json-pre {
   background: #111;
   color: #b9f6ca;
@@ -69,10 +70,12 @@
   max-height: 200px;
   font-size: 13px;
 }
+
 .missing {
   color: #c62828;
   font-weight: bold;
 }
+
 .manual-select-row {
   display: flex;
   flex-wrap: wrap;
@@ -87,6 +90,7 @@
   padding: 6px 10px;
   min-width: 110px;
 }
+
 .preview-img {
   max-width: 300px;
   border-radius: 8px;
@@ -105,7 +109,7 @@
 
   <div class="score-wrap">
 
-    <h1 style="text-align:center;">🀄 点数計算（AI連携 v3.5）</h1>
+    <h1 style="text-align:center;">🀄 点数計算（AI連携 v3.7）</h1>
 
     <!-- アップロード + フォーム -->
     <div class="card-box">
@@ -125,7 +129,6 @@
           <input type="hidden" name="saved_path" value="{{ saved_path }}">
         {% endif %}
 
-        <!-- 検出済み牌の保持（ループ防止用） -->
         <input type="hidden" name="detected_tiles_str" value="{{ detected_tiles_str | default('') }}">
 
         {% if need_more %}
@@ -135,7 +138,7 @@
           {% if detected %}
             <ul class="tile-list">
               {% for d in detected %}
-                <li>{{ d.short }}</li>
+                <li><img src="{{ url_for('static', filename='tiles/' ~ d.short ~ '.png') }}" alt="{{ d.short }}"></li>
               {% endfor %}
             </ul>
           {% else %}
@@ -201,12 +204,16 @@
       <p><b>役:</b> {{ result.yaku_tsumo }}</p>
       <p><b>翻数:</b> {{ result.han_tsumo }}</p>
       <p><b>符:</b> {{ result.fu_tsumo }}</p>
-      <p><b>上がり牌:</b> {{ result.win_tile }}</p>
+      <p><b>上がり牌:</b> 
+        <img src="{{ url_for('static', filename='tiles/' ~ result.win_tile ~ '.png') }}"
+             alt="{{ result.win_tile }}"
+             style="width:38px; vertical-align:middle; background:#2e7d32; border-radius:6px; padding:2px;">
+      </p>
 
       <p style="margin-top:12px;"><b>使用した手牌:</b></p>
       <div class="hand-tags">
         {% for t in result.tiles_used %}
-          <span>{{ t }}</span>
+          <img src="{{ url_for('static', filename='tiles/' ~ t ~ '.png') }}" alt="{{ t }}">
         {% endfor %}
       </div>
     </div>
