@@ -696,17 +696,7 @@ def score():
     detected_tiles = []
     detected_tiles_str = ""
 
-# === Macni雀 v3.8: 14枚を麻雀の標準順に並べ替える ===
-def sort_mahjong_tiles(tiles):
-    """ tiles: ['1m','3p','2s','5z',...] を麻雀順に並べ替える """
-    order = {"m":0, "p":1, "s":2, "z":3}
-    return sorted(
-        tiles,
-        key=lambda t: (order.get(t[1], 9), int(t[0]))
-    )
 
-    # 既に14枚そろっている場合に並べ替えを適用
-    detected_tiles = sort_mahjong_tiles(detected_tiles)
 
     if request.method == "POST":
         new_image = request.files.get("image")
