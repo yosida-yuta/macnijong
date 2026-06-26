@@ -818,23 +818,58 @@ def score():
         calc_tsumo = calculator.estimate_hand_value(tiles, win_tile, config=HandConfig(is_tsumo=True))
         calc_ron = calculator.estimate_hand_value(tiles, win_tile, config=HandConfig(is_tsumo=False))
 
+        # === 子のツモあがり ===
         if calc_tsumo.cost:
-            main = calc_tsumo.cost["main"]
-            additional = calc_tsumo.cost["additional"]
+            main = calc_tsumo.cost["main"]              # 親が払う点数
+            additional = calc_tsumo.cost["additional"]  # 子が払う点数
+
+            # 子のツモあがり
             child_main = main
             child_add = additional
             child_total = main + additional * 2
-            dealer_each = main * 2
-            dealer_total = main * 6
+
+            # 親のツモあがり
+            dealer_each = main      # ← ✅ 子が払う点数 = 子のツモあがりで親が払う点数
+            dealer_total = main * 3 # ← ✅ 子3人がそれぞれ main を払う
         else:
             child_main = child_add = child_total = "計算不可"
             dealer_each = dealer_total = "計算不可"
 
+        # ===========================================
+        # ロン点数テーブル（1〜4翻のみ）
+        # ===========================================
+        RON_CHILD = {
+            1: {30:1000, 40:1300, 50:1600, 60:2000, 70:2300},
+            2: {20:1300, 25:1600, 30:2000, 40:2600, 50:3200, 60:3900, 70:4500},
+            3: {20:2600, 25:3200, 30:3900, 40:5200, 50:6400, 60:7700, 70:"満貫"},
+            4: {20:5200, 25:6400, 30:7700, 40:"満貫", 50:"満貫", 60:"満貫", 70:"満貫"},
+        }
+
+        RON_DEALER = {
+            1: {30:1500, 40:2000, 50:2400, 60:2900, 70:3400},
+            2: {20:2000, 25:2400, 30:2900, 40:3900, 50:4800, 60:5800, 70:6800},
+            3: {20:3900, 25:4800, 30:5800, 40:7700, 50:9600, 60:11600, 70:"満貫"},
+            4: {20:7700, 25:9600, 30:11600, 40:"満貫", 50:"満貫", 60:"満貫", 70:"満貫"},
+        }
+
+        # ===========================================
+        # ロン点数を導出
+        # ===========================================
         if calc_ron.cost:
-            ron_child = calc_ron.cost["main"]
-            ron_dealer = ron_child * 6 // 4
+            han = calc_ron.han
+            fu = calc_ron.fu
+
+            # 5翻以上 → 既存ロジック（mahjongのmain）を使用
+            if han and han >= 5:
+                ron_child = calc_ron.cost["main"]
+                ron_dealer = ron_child * 6 // 4
+            else:
+                # 1〜4翻 → 翻×符テーブル参照
+                ron_child = RON_CHILD.get(han, {}).get(fu, "計算不可")
+                ron_dealer = RON_DEALER.get(han, {}).get(fu, "計算不可")
         else:
-            ron_child = ron_dealer = "計算不可"
+            ron_child = "計算不可"
+            ron_dealer = "計算不可"
 
         result = {
             "yaku_tsumo":[str(y) for y in calc_tsumo.yaku] if calc_tsumo.yaku else "なし",
