@@ -1174,3 +1174,16 @@ button:hover {
 .search-btn:hover {
   background: #1b5e20;
 }
+
+
+.nickname-link {
+  color: #fff;
+  text-decoration: none;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.nickname-link:hover {
+  background: rgba(255,255,255,0.1);
+  text-decoration: underline;
+}
