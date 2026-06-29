@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Macni雀 - 点数計算 v3.9</title>
+<title>Macni雀 - 点数計算</title>
 {{ url_for('static', filename='css/style.css') }}
 <style>
 .score-wrap {
@@ -35,73 +35,67 @@
 }
 
 .btn-primary {
-  background: #2e7d32; color: white; border: none;
-  padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 16px;
+  background: #2e7d32;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
 }
-.btn-primary:hover { background: #1b5e20; }
+.btn-primary:hover {
+  background: #1b5e20;
+}
 
-.hand-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.hand-tags {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+}
 
 .result-grid {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 16px; margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 12px;
 }
 @media (max-width: 600px) {
   .result-grid { grid-template-columns: 1fr; }
 }
 
 .json-pre {
-  background: #111; color: #b9f6ca;
-  padding: 12px; border-radius: 8px;
-  overflow: auto; max-height: 200px; font-size: 13px;
+  background: #111;
+  color: #b9f6ca;
+  padding: 12px;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 200px;
+  font-size: 13px;
 }
 
-.missing { color: #c62828; font-weight: bold; }
+.missing {
+  color: #c62828;
+  font-weight: bold;
+}
 
 .manual-select-row {
-  display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
 }
 .manual-select {
-  background: #1e1e1e; color: #fff;
-  border: 1px solid #444; border-radius: 6px;
-  padding: 6px 10px; min-width: 110px;
+  background: #1e1e1e;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 6px 10px;
+  min-width: 110px;
 }
 
 .preview-img {
-  max-width: 300px; border-radius: 8px; margin-top: 8px;
+  max-width: 300px;
+  border-radius: 8px;
+  margin-top: 8px;
 }
-
-.checkbox-grid {
-  display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap:8px; margin: 8px 0;
-}
-.checkbox-grid label {
-  background: #f1f1f1; color: #000;
-  padding: 6px 8px; border-radius: 6px;
-  display:flex; align-items:center; gap:6px;
-}
-
-.win-tile-picker {
-  display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;
-}
-.win-tile-picker label { cursor:pointer; display:inline-block; }
-.win-tile-picker input[type="radio"]{ display:none; }
-.win-tile-picker input[type="radio"]:checked + img {
-  border: 3px solid red; border-radius: 6px;
-}
-.win-tile-picker img {
-  width:50px; background:#2e7d32; border-radius:6px; padding:3px;
-}
-
-.tab-row { display:flex; gap:8px; margin-bottom:8px; }
-.tab-btn {
-  background: #ddd; color:#000; border:none;
-  padding:8px 14px; border-radius:8px; cursor:pointer;
-}
-.tab-btn.active { background:#2e7d32; color:#fff; font-weight:bold; }
-.tab-content { display:none; }
-.tab-content.active { display:block; }
 </style>
 </head>
 <body>
@@ -109,16 +103,17 @@
 <div class="container">
 
   <div class="header">
-    {{ url_for('menu') }}
+    u') }}">← メニュー</a>
     <span class="nickname">{{ nickname }}</span>
   </div>
 
   <div class="score-wrap">
 
-    <h1 style="text-align:center;">🀄 点数計算 v3.9</h1>
+    <h1 style="text-align:center;">🀄 点数計算（AI連携 v3.7）</h1>
 
+    <!-- アップロード + フォーム -->
     <div class="card-box">
-      {{ url_for('score') }}
+      <form method="POST" enctype="multipart/form-data">
 
         <p><b>📤 画像のアップロード</b></p>
         <input type="file" name="image">
@@ -143,7 +138,7 @@
           {% if detected %}
             <ul class="tile-list">
               {% for d in detected %}
-                <li>{{ url_for('static', filename='tiles/' ~ d.short ~ '.png') }}</li>
+                <li>~ d.short ~ '.png') }}" alt="{{ d.short }}"></li>
               {% endfor %}
             </ul>
           {% else %}
@@ -181,54 +176,17 @@
         {% elif pick_win_tile %}
           <hr>
           <h3>14枚そろいました 🎉</h3>
-          <p>下の牌から「上がり牌」をクリックしてください</p>
+          <p>上がり牌を選んでください</p>
 
-          <div class="win-tile-picker">
+          <select name="win_tile" class="manual-select" required>
+            <option value="">-- 上がり牌を選択 --</option>
             {% for t in tiles_14 %}
-              <label>
-                <input type="radio" name="win_tile" value="{{ t }}" required>
-                {{ url_for('static', filename='tiles/' ~ t ~ '.png') }}
-              </label>
+              <option value="{{ t }}">{{ t }}</option>
             {% endfor %}
-          </div>
-
-          <hr>
-          <h3>🎮 状況フラグ</h3>
-          <div class="checkbox-grid">
-            <label><input type="checkbox" name="is_riichi"> リーチ</label>
-            <label><input type="checkbox" name="is_double_riichi"> ダブルリーチ</label>
-            <label><input type="checkbox" name="is_ippatsu"> 一発</label>
-            <label><input type="checkbox" name="is_chankan"> 槍槓</label>
-            <label><input type="checkbox" name="is_haitei"> 海底</label>
-            <label><input type="checkbox" name="is_houtei"> 河底</label>
-            <label><input type="checkbox" name="is_rinshan"> 嶺上</label>
-          </div>
-
-          <h3>🌬 風 / ドラ</h3>
-          <div class="checkbox-grid">
-            <label>自風:
-              <select name="player_wind">
-                <option value="1z">東</option>
-                <option value="2z">南</option>
-                <option value="3z">西</option>
-                <option value="4z">北</option>
-              </select>
-            </label>
-            <label>場風:
-              <select name="round_wind">
-                <option value="1z">東場</option>
-                <option value="2z">南場</option>
-                <option value="3z">西場</option>
-                <option value="4z">北場</option>
-              </select>
-            </label>
-            <label>ドラ:
-              <input type="number" name="dora_count" value="0" min="0" max="10" style="width:80px;">
-            </label>
-          </div>
+          </select>
         {% endif %}
 
-        <br>
+        <br><br>
         <button type="submit" class="btn-primary">解析する</button>
       </form>
     </div>
@@ -242,49 +200,14 @@
 
     {% if result %}
     <div class="card-box">
-      <h3>📋 結果</h3>
-
-      <div class="tab-row">
-        <button type="button" class="tab-btn active" onclick="showTab(event, 'tsumo')">ツモ和了</button>
-        <button type="button" class="tab-btn" onclick="showTab(event, 'ron')">ロン和了</button>
-      </div>
-
-      <div id="tab-tsumo" class="tab-content active">
-        <p><b>役:</b> {{ result.yaku_tsumo }}</p>
-        <p><b>翻数:</b> {{ result.han_tsumo }}</p>
-        <p><b>符:</b> {{ result.fu_tsumo }}</p>
-
-        <div class="result-grid">
-          <div class="result-box">
-            <h3>👑 親があがった場合（ツモ）</h3>
-            <p>子が払う点数: <b>{{ result.dealer_each }}</b> 点</p>
-            <p>合計: <b>{{ result.dealer_total }}</b> 点</p>
-          </div>
-          <div class="result-box">
-            <h3>🧑 子があがった場合（ツモ）</h3>
-            <p>親が払う点数: <b>{{ result.child_main }}</b> 点</p>
-            <p>子が払う点数: <b>{{ result.child_add }}</b> 点</p>
-            <p>合計: <b>{{ result.child_total }}</b> 点</p>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-ron" class="tab-content">
-        <p><b>役:</b> {{ result.yaku_ron }}</p>
-        <p><b>翻数:</b> {{ result.han_ron }}</p>
-        <p><b>符:</b> {{ result.fu_ron }}</p>
-
-        <div class="result-grid">
-          <div class="result-box">
-            <h3>👑 親があがった場合（ロン）</h3>
-            <p>振込者が払う点数: <b>{{ result.ron_dealer }}</b> 点</p>
-          </div>
-          <div class="result-box">
-            <h3>🧑 子があがった場合（ロン）</h3>
-            <p>振込者が払う点数: <b>{{ result.ron_child }}</b> 点</p>
-          </div>
-        </div>
-      </div>
+      <h3>📋 結果（ツモ和了）</h3>
+      <p><b>役:</b> {{ result.yaku_tsumo }}</p>
+      <p><b>翻数:</b> {{ result.han_tsumo }}</p>
+      <p><b>符:</b> {{ result.fu_tsumo }}</p>
+      <p><b>上がり牌:</b> 
+        {{ url_for('static', filename='tiles/' ~ result.win_tile ~ '.png') }}t="{{ result.win_tile }}"
+             style="width:38px; vertical-align:middle; background:#2e7d32; border-radius:6px; padding:2px;">
+      </p>
 
       <p style="margin-top:12px;"><b>使用した手牌:</b></p>
       <div class="hand-tags">
@@ -293,24 +216,45 @@
         {% endfor %}
       </div>
     </div>
+
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>👑 親があがった場合（ツモ）</h3>
+        <p>子が払う点数: <b>{{ result.dealer_each }}</b> 点</p>
+        <p>合計: <b>{{ result.dealer_total }}</b> 点</p>
+      </div>
+
+      <div class="result-box">
+        <h3>🧑 子があがった場合（ツモ）</h3>
+        <p>親が払う点数: <b>{{ result.child_main }}</b> 点</p>
+        <p>子が払う点数: <b>{{ result.child_add }}</b> 点</p>
+        <p>合計: <b>{{ result.child_total }}</b> 点</p>
+      </div>
+    </div>
+
+    <div class="card-box">
+      <h3>📋 結果（ロン和了）</h3>
+      <p><b>役:</b> {{ result.yaku_ron }}</p>
+      <p><b>翻数:</b> {{ result.han_ron }}</p>
+      <p><b>符:</b> {{ result.fu_ron }}</p>
+    </div>
+
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>👑 親があがった場合（ロン）</h3>
+        <p>振込者が払う点数: <b>{{ result.ron_dealer }}</b> 点</p>
+      </div>
+
+      <div class="result-box">
+        <h3>🧑 子があがった場合（ロン）</h3>
+        <p>振込者が払う点数: <b>{{ result.ron_child }}</b> 点</p>
+      </div>
+    </div>
     {% endif %}
 
   </div>
 
 </div>
-
-<script>
-function showTab(e, name) {
-  document.querySelectorAll('.tab-content').forEach(function (el) {
-    el.classList.remove('active');
-  });
-  document.querySelectorAll('.tab-btn').forEach(function (el) {
-    el.classList.remove('active');
-  });
-  document.getElementById('tab-' + name).classList.add('active');
-  e.currentTarget.classList.add('active');
-}
-</script>
 
 </body>
 </html>
