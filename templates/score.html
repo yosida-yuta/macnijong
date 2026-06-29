@@ -265,6 +265,16 @@
 
           <input type="hidden" name="meld_count" id="meld_count" value="0">
 
+          <!-- 手牌14枚をJSONで渡す -->
+          <script type="application/json" id="tiles_14_json">
+          {{ tiles_14 | tojson }}
+          </script>
+
+          <!-- 画像ベースURLを渡す（重要） -->
+          <script>
+            const TILE_BASE_URL = "{{ url_for('static', filename='tiles/') }}";
+          </script>
+
           <script>
           let meldIndex = 0;
 
@@ -272,7 +282,6 @@
             const i = meldIndex;
             const tilesData = JSON.parse(document.getElementById("tiles_14_json").textContent);
 
-            // 鳴き選択用UI
             const html = `
               <div id="meld-${i}" style="background:#fff; color:#000; border-radius:8px; padding:10px; margin:8px 0; border:1px solid #ccc;">
                 <label>種別:
@@ -286,10 +295,13 @@
                 <br><br>
 
                 <label>使用する牌（手牌からクリックで選択）:</label>
-                <div class="meld-tile-picker" data-meld-id="${i}" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">
+                <div class="meld-tile-picker"
+                    data-meld-id="${i}"
+                    style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">
                   ${tilesData.map(t => `
                     <img
-                      '.png') }}t="${t}"
+                      src="${TILE_BASE_URL}${t}.png"
+                      alt="${t}"
                       data-tile="${t}"
                       class="meld-tile-img"
                       style="width:40px; background:#2e7d32; border-radius:6px; padding:2px; cursor:pointer;"
@@ -300,8 +312,9 @@
 
                 <input type="hidden" name="meld_${i}_tiles" id="meld_${i}_tiles" value="">
                 <br>
-                <button type="button" style="background:#c62828; color:#fff; border:none; border-radius:6px; padding:6px 12px; margin-top:8px;"
-                  onclick="removeMeld(${i})">🗑 削除</button>
+                <button type="button"
+                        style="background:#c62828; color:#fff; border:none; border-radius:6px; padding:6px 12px; margin-top:8px;"
+                        onclick="removeMeld(${i})">🗑 削除</button>
               </div>
             `;
 
@@ -332,11 +345,6 @@
             const el = document.getElementById(`meld-${id}`);
             if (el) el.remove();
           }
-          </script>
-
-          <!-- 手牌14枚をJSONで渡す（鳴きクリック用） -->
-          <script type="application/json" id="tiles_14_json">
-          {{ tiles_14 | tojson }}
           </script>
 
           <hr>
