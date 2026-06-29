@@ -258,7 +258,7 @@
 
           <hr>
           <h3>🀜 鳴き / 槓</h3>
-          <p>鳴いた / 槓した牌を追加できます。</p>
+          <p>鳴いた / 槓した牌を手牌からクリックで選択できます。</p>
 
           <div id="meld-area"></div>
           <button type="button" class="btn-primary" onclick="addMeld()">+ 鳴き/槓を追加</button>
@@ -267,10 +267,14 @@
 
           <script>
           let meldIndex = 0;
+
           function addMeld() {
-            const i = meldIndex++;
+            const i = meldIndex;
+            const tilesData = JSON.parse(document.getElementById("tiles_14_json").textContent);
+
+            // 鳴き選択用UI
             const html = `
-              <div style="background:#fff; color:#000; border-radius:8px; padding:10px; margin:8px 0;">
+              <div id="meld-${i}" style="background:#fff; color:#000; border-radius:8px; padding:10px; margin:8px 0; border:1px solid #ccc;">
                 <label>種別:
                   <select name="meld_${i}_type">
                     <option value="pon">ポン</option>
@@ -279,15 +283,60 @@
                     <option value="kan_closed">暗槓</option>
                   </select>
                 </label>
+                <br><br>
+
+                <label>使用する牌（手牌からクリックで選択）:</label>
+                <div class="meld-tile-picker" data-meld-id="${i}" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">
+                  ${tilesData.map(t => `
+                    <img
+                      '.png') }}t="${t}"
+                      data-tile="${t}"
+                      class="meld-tile-img"
+                      style="width:40px; background:#2e7d32; border-radius:6px; padding:2px; cursor:pointer;"
+                      onclick="toggleMeldTile(this)"
+                    >
+                  `).join("")}
+                </div>
+
+                <input type="hidden" name="meld_${i}_tiles" id="meld_${i}_tiles" value="">
                 <br>
-                <label>牌 (例: 1m,1m,1m):
-                  <input type="text" name="meld_${i}_tiles" placeholder="例：1m,1m,1m" required>
-                </label>
+                <button type="button" style="background:#c62828; color:#fff; border:none; border-radius:6px; padding:6px 12px; margin-top:8px;"
+                  onclick="removeMeld(${i})">🗑 削除</button>
               </div>
             `;
+
             document.getElementById('meld-area').insertAdjacentHTML('beforeend', html);
+            meldIndex++;
             document.getElementById('meld_count').value = meldIndex;
           }
+
+          function toggleMeldTile(img) {
+            const meldId = img.parentElement.dataset.meldId;
+            img.classList.toggle("selected");
+            if (img.classList.contains("selected")) {
+              img.style.border = "3px solid red";
+            } else {
+              img.style.border = "";
+            }
+            updateMeldTiles(meldId);
+          }
+
+          function updateMeldTiles(meldId) {
+            const picker = document.querySelector(`[data-meld-id="${meldId}"]`);
+            const selected = picker.querySelectorAll(".selected");
+            const tiles = Array.from(selected).map(el => el.dataset.tile).join(",");
+            document.getElementById(`meld_${meldId}_tiles`).value = tiles;
+          }
+
+          function removeMeld(id) {
+            const el = document.getElementById(`meld-${id}`);
+            if (el) el.remove();
+          }
+          </script>
+
+          <!-- 手牌14枚をJSONで渡す（鳴きクリック用） -->
+          <script type="application/json" id="tiles_14_json">
+          {{ tiles_14 | tojson }}
           </script>
 
           <hr>
