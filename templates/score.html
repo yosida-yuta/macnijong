@@ -352,8 +352,16 @@
 
       <p style="margin-top:12px;"><b>使用した手牌:</b></p>
       <div class="hand-tags">
+        {% set win_indexes = [] %}
+        {% for i in range(result.tiles_used | length) %}
+          {% if result.tiles_used[i] == result.win_tile %}
+            {% if win_indexes.append(i) %}{% endif %}
+          {% endif %}
+        {% endfor %}
+        {% set highlight_index = win_indexes[-1] if win_indexes else -1 %}
+
         {% for t in result.tiles_used %}
-          {% if t == result.win_tile %}
+          {% if loop.index0 == highlight_index %}
             <img
               src="{{ url_for('static', filename='tiles/' + t + '.png') }}"
               alt="{{ t }}"
