@@ -824,6 +824,42 @@ def score():
             "honors": num if kind=="z" else "",
         })[0]
 
+        # === Macni雀 v4.2 鳴き情報を取得 ===
+        from mahjong.meld import Meld
+
+        melds = []
+        meld_count = int(request.form.get("meld_count", "0") or 0)
+
+        for i in range(meld_count):
+            m_type = request.form.get(f"meld_{i}_type")
+            m_tiles_str = request.form.get(f"meld_{i}_tiles", "").strip()
+
+            if not m_type or not m_tiles_str:
+                continue
+
+            m_tiles = m_tiles_str.split(",")
+            tiles_136 = []
+
+            for tile in m_tiles:
+                num, kind = tile[0], tile[1]
+                tiles_136.extend(
+                    TilesConverter.string_to_136_array(**{
+                        "man": num if kind == "m" else "",
+                        "pin": num if kind == "p" else "",
+                        "sou": num if kind == "s" else "",
+                        "honors": num if kind == "z" else "",
+                    })
+                )
+
+            if m_type == "pon":
+                melds.append(Meld(meld_type=Meld.PON, tiles=tiles_136))
+            elif m_type == "chi":
+                melds.append(Meld(meld_type=Meld.CHI, tiles=tiles_136))
+            elif m_type == "kan_open":
+                melds.append(Meld(meld_type=Meld.KAN, tiles=tiles_136, opened=True))
+            elif m_type == "kan_closed":
+                melds.append(Meld(meld_type=Meld.KAN, tiles=tiles_136, opened=False))
+
         # === 状況フラグ取得 ===
         is_riichi = request.form.get("is_riichi") == "on"
         is_ippatsu = request.form.get("is_ippatsu") == "on"
@@ -856,6 +892,7 @@ def score():
         # === ツモ和了 ===
         calc_tsumo = calculator.estimate_hand_value(
             tiles, win_tile,
+            melds=melds,
             config=HandConfig(
                 is_tsumo=True,
                 is_riichi=is_riichi,
@@ -873,6 +910,7 @@ def score():
         # === ロン和了 ===
         calc_ron = calculator.estimate_hand_value(
             tiles, win_tile,
+            melds=melds,
             config=HandConfig(
                 is_tsumo=False,
                 is_riichi=is_riichi,

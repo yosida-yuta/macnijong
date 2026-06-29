@@ -257,6 +257,40 @@
           </div>
 
           <hr>
+          <h3>🀜 鳴き / 槓</h3>
+          <p>鳴いた / 槓した牌を追加できます。</p>
+
+          <div id="meld-area"></div>
+          <button type="button" class="btn-primary" onclick="addMeld()">+ 鳴き/槓を追加</button>
+
+          <input type="hidden" name="meld_count" id="meld_count" value="0">
+
+          <script>
+          let meldIndex = 0;
+          function addMeld() {
+            const i = meldIndex++;
+            const html = `
+              <div style="background:#fff; color:#000; border-radius:8px; padding:10px; margin:8px 0;">
+                <label>種別:
+                  <select name="meld_${i}_type">
+                    <option value="pon">ポン</option>
+                    <option value="chi">チー</option>
+                    <option value="kan_open">明槓</option>
+                    <option value="kan_closed">暗槓</option>
+                  </select>
+                </label>
+                <br>
+                <label>牌 (例: 1m,1m,1m):
+                  <input type="text" name="meld_${i}_tiles" placeholder="例：1m,1m,1m" required>
+                </label>
+              </div>
+            `;
+            document.getElementById('meld-area').insertAdjacentHTML('beforeend', html);
+            document.getElementById('meld_count').value = meldIndex;
+          }
+          </script>
+
+          <hr>
           <h3>🎮 状況フラグ</h3>
           <div class="checkbox-grid">
             <label><input type="checkbox" name="is_riichi"> リーチ</label>
