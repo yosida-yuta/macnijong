@@ -887,6 +887,72 @@ def score():
             )
         )
 
+
+        # === 役名を漢字に変換するマップ ===
+        YAKU_JA = {
+            "Riichi": "立直",
+            "Daburu Riichi": "ダブル立直",
+            "Ippatsu": "一発",
+            "Tsumo": "ツモ",
+            "Menzen Tsumo": "門前清自摸和",
+            "Pinfu": "平和",
+            "Iipeiko": "一盃口",
+            "Haitei Raoyue": "海底摸月",
+            "Houtei Raoyui": "河底撈魚",
+            "Rinshan Kaihou": "嶺上開花",
+            "Chankan": "槍槓",
+            "Tanyao": "断幺九",
+            "Yakuhai (Haku)": "役牌 白",
+            "Yakuhai (Hatsu)": "役牌 發",
+            "Yakuhai (Chun)": "役牌 中",
+            "Yakuhai (Place Wind)": "場風",
+            "Yakuhai (Round Wind)": "自風",
+            "Sanshoku Doujun": "三色同順",
+            "Ittsu": "一気通貫",
+            "Chanta": "全帯幺",
+            "Honroutou": "混老頭",
+            "Toitoi": "対々和",
+            "Sanshoku Doukou": "三色同刻",
+            "Sanankou": "三暗刻",
+            "Sankantsu": "三槓子",
+            "Shousangen": "小三元",
+            "Honitsu": "混一色",
+            "Junchan": "純全帯幺",
+            "Ryanpeikou": "二盃口",
+            "Chinitsu": "清一色",
+            "Kokushi Musou": "国士無双",
+            "Chiitoitsu": "七対子",
+            "Suuankou": "四暗刻",
+            "Suuankou Tanki": "四暗刻単騎",
+            "Daisangen": "大三元",
+            "Shousuushii": "小四喜",
+            "Daisuushii": "大四喜",
+            "Tsuuiisou": "字一色",
+            "Ryuuiisou": "緑一色",
+            "Chinroutou": "清老頭",
+            "Suukantsu": "四槓子",
+            "Chuuren Pouto": "九蓮宝燈",
+            "Junsei Chuuren Pouto": "純正九蓮宝燈",
+            "Tenhou": "天和",
+            "Chiihou": "地和",
+            "Renhou": "人和",
+        }
+
+        def yaku_to_japanese(yaku_list):
+            return [YAKU_JA.get(str(y), str(y)) for y in yaku_list]
+
+        def build_yaku_with_dora(calc, dora_count):
+            if not calc.yaku:
+                return "なし"
+            yaku_list = yaku_to_japanese(calc.yaku)
+            if dora_count and dora_count > 0:
+                yaku_list.append(f"ドラ{dora_count}")
+            return yaku_list
+
+        # Macni雀 v4.1 の業務SaaS級アプリ用に変換
+        yaku_tsumo = build_yaku_with_dora(calc_tsumo, dora_count)
+        yaku_ron = build_yaku_with_dora(calc_ron, dora_count)
+
         # === ドラを翻数に加算 ===
         if calc_tsumo.han is not None:
             calc_tsumo.han += dora_count
@@ -947,10 +1013,10 @@ def score():
             ron_dealer = "計算不可"
 
         result = {
-            "yaku_tsumo":[str(y) for y in calc_tsumo.yaku] if calc_tsumo.yaku else "なし",
+            "yaku_tsumo": yaku_tsumo,
             "han_tsumo": calc_tsumo.han or "なし",
             "fu_tsumo": calc_tsumo.fu or "なし",
-            "yaku_ron":[str(y) for y in calc_ron.yaku] if calc_ron.yaku else "なし",
+            "yaku_ron": yaku_ron,
             "han_ron": calc_ron.han or "なし",
             "fu_ron": calc_ron.fu or "なし",
             "child_main": child_main,
