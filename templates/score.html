@@ -123,7 +123,10 @@
             <ul class="tile-list">
               {% for d in detected %}
                 <li>
-                  <img src="{{ url_for('static', filename='tiles/' ~ d.short ~ '.png') }}" alt="{{ d.short }}">
+                  <img
+                    src="{{ url_for('static', filename='tiles/' ~ d.short ~ '.png') }}"
+                    alt="{{ d.short }}"
+                  >
                 </li>
               {% endfor %}
             </ul>
@@ -166,7 +169,10 @@
             {% for t in tiles_14 %}
               <label>
                 <input type="radio" name="win_tile" value="{{ t }}" required>
-                <img src="{{ url_for('static', filename='tiles/' ~ t ~ '.png') }}" alt="{{ t }}">
+                <img
+                  src="{{ url_for('static', filename='tiles/' ~ t ~ '.png') }}"
+                  alt="{{ t }}"
+                >
               </label>
             {% endfor %}
           </div>
@@ -266,11 +272,14 @@
       </div>
 
       <p style="margin-top:12px;"><b>使用した手牌:</b></p>
-      <div class="hand-tags">
-        {% for t in result.tiles_used %}
-          <img src="{{ url_for('static', filename='tiles/' ~ t ~ '.png') }}" alt="{{ t }}">
-        {% endfor %}
-      </div>
+        <div class="hand-tags">
+          {% for t in result.tiles_used %}
+            <img
+              src="{{ url_for('static', filename='tiles/' ~ t ~ '.png') }}"
+              alt="{{ t }}"
+            >
+          {% endfor %}
+        </div>
     </div>
     {% endif %}
 
