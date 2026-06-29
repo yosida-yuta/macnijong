@@ -7,6 +7,15 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
 <style>
+
+.win-highlight {
+  border: 3px solid #ffeb3b !important;
+  background: #c62828 !important;
+  border-radius: 6px;
+  padding: 2px;
+  box-shadow: 0 0 10px #ffeb3b;
+}
+
 .score-wrap {
   max-width: 800px;
   margin: 30px auto;
@@ -344,7 +353,18 @@
       <p style="margin-top:12px;"><b>使用した手牌:</b></p>
       <div class="hand-tags">
         {% for t in result.tiles_used %}
-          <img src="{{ url_for('static', filename='tiles/' + t + '.png') }}" alt="{{ t }}">
+          {% if t == result.win_tile %}
+            <img
+              src="{{ url_for('static', filename='tiles/' + t + '.png') }}"
+              alt="{{ t }}"
+              class="win-highlight"
+            >
+          {% else %}
+            <img
+              src="{{ url_for('static', filename='tiles/' + t + '.png') }}"
+              alt="{{ t }}"
+            >
+          {% endif %}
         {% endfor %}
       </div>
     </div>
