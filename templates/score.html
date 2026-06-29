@@ -1,42 +1,75 @@
-{% raw %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <title>Macni雀 - 点数計算 v3.9</title>
-
-<!-- CSS 読み込み -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-
+{{ url_for('static', filename='css/style.css') }}
 <style>
-.score-wrap { max-width: 800px; margin: 30px auto; padding: 0 16px; color: #fff; }
-
+.score-wrap {
+  max-width: 800px;
+  margin: 30px auto;
+  padding: 0 16px;
+  color: #fff;
+}
 .card-box, .result-box {
-  background: #fff; color: #000;
-  border: 1px solid rgba(0,0,0,0.1); border-radius: 12px;
-  padding: 20px; margin: 16px 0;
+  background: #fff;
+  color: #000;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 16px 0;
+}
+
+/* 牌（画像）リスト */
+.tile-list {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  list-style: none; padding: 0; margin: 12px 0;
+}
+.tile-list li img,
+.hand-tags img {
+  width: 38px;
+  height: auto;
+  background: #2e7d32;
+  border-radius: 6px;
+  padding: 2px;
 }
 
 .btn-primary {
   background: #2e7d32; color: white; border: none;
-  padding: 10px 20px; border-radius: 8px;
-  cursor: pointer; font-size: 16px;
+  padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 16px;
 }
 .btn-primary:hover { background: #1b5e20; }
 
 .hand-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.hand-tags img { width:38px; background:#2e7d32; border-radius:6px; padding:2px; }
 
-.tile-list { display:flex; flex-wrap:wrap; gap:8px; list-style:none; padding:0; }
-.tile-list li img { width:38px; background:#2e7d32; border-radius:6px; padding:2px; }
-
-.win-tile-picker { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
-.win-tile-picker label { cursor:pointer; display:inline-block; }
-.win-tile-picker input[type="radio"]{ display:none; }
-.win-tile-picker input[type="radio"]:checked + img {
-  border: 3px solid red; border-radius: 6px;
+.result-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px; margin-top: 12px;
 }
-.win-tile-picker img { width:50px; background:#2e7d32; border-radius:6px; padding:3px; }
+@media (max-width: 600px) {
+  .result-grid { grid-template-columns: 1fr; }
+}
+
+.json-pre {
+  background: #111; color: #b9f6ca;
+  padding: 12px; border-radius: 8px;
+  overflow: auto; max-height: 200px; font-size: 13px;
+}
+
+.missing { color: #c62828; font-weight: bold; }
+
+.manual-select-row {
+  display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0;
+}
+.manual-select {
+  background: #1e1e1e; color: #fff;
+  border: 1px solid #444; border-radius: 6px;
+  padding: 6px 10px; min-width: 110px;
+}
+
+.preview-img {
+  max-width: 300px; border-radius: 8px; margin-top: 8px;
+}
 
 .checkbox-grid {
   display:grid;
@@ -44,9 +77,21 @@
   gap:8px; margin: 8px 0;
 }
 .checkbox-grid label {
-  background: #f1f1f1; color:#000;
+  background: #f1f1f1; color: #000;
   padding: 6px 8px; border-radius: 6px;
   display:flex; align-items:center; gap:6px;
+}
+
+.win-tile-picker {
+  display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;
+}
+.win-tile-picker label { cursor:pointer; display:inline-block; }
+.win-tile-picker input[type="radio"]{ display:none; }
+.win-tile-picker input[type="radio"]:checked + img {
+  border: 3px solid red; border-radius: 6px;
+}
+.win-tile-picker img {
+  width:50px; background:#2e7d32; border-radius:6px; padding:3px;
 }
 
 .tab-row { display:flex; gap:8px; margin-bottom:8px; }
@@ -54,41 +99,17 @@
   background: #ddd; color:#000; border:none;
   padding:8px 14px; border-radius:8px; cursor:pointer;
 }
-.tab-btn.active {
-  background: #2e7d32; color: #fff; font-weight: bold;
-}
+.tab-btn.active { background:#2e7d32; color:#fff; font-weight:bold; }
 .tab-content { display:none; }
 .tab-content.active { display:block; }
-
-.result-grid {
-  display:grid; grid-template-columns: 1fr 1fr;
-  gap:16px; margin-top:12px;
-}
-@media (max-width:600px) { .result-grid { grid-template-columns: 1fr; } }
-
-.missing { color:#c62828; font-weight:bold; }
-
-.json-pre {
-  background:#111; color:#b9f6ca;
-  padding:12px; border-radius:8px;
-  max-height:200px; overflow:auto;
-}
-
-.preview-img { max-width: 300px; border-radius: 8px; margin-top: 8px; }
-
-.back-link {
-  color: #fff; text-decoration: none; padding: 4px 8px;
-}
-.back-link:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
 
 <div class="container">
 
-  <!-- ヘッダー -->
   <div class="header">
-    <a class="back-link" href="{{ url_for('menu') }}">← メニュー</a>
+    {{ url_for('menu') }}
     <span class="nickname">{{ nickname }}</span>
   </div>
 
@@ -97,7 +118,7 @@
     <h1 style="text-align:center;">🀄 点数計算 v3.9</h1>
 
     <div class="card-box">
-      <form method="POST" action="{{ url_for('score') }}" enctype="multipart/form-data">
+      {{ url_for('score') }}
 
         <p><b>📤 画像のアップロード</b></p>
         <input type="file" name="image">
@@ -109,7 +130,7 @@
         {% endif %}
 
         {% if image_url %}
-          <img class="preview-img" src="{{ image_url }}" alt="uploaded">
+          {{ image_url }}
           <input type="hidden" name="saved_path" value="{{ saved_path }}">
         {% endif %}
 
@@ -122,21 +143,18 @@
           {% if detected %}
             <ul class="tile-list">
               {% for d in detected %}
-                <li>
-                  <img
-                    src="{{ url_for('static', filename='tiles/' ~ d.short ~ '.png') }}"
-                    alt="{{ d.short }}"
-                  >
-                </li>
+                <li>{{ url_for('static', filename='tiles/' ~ d.short ~ '.png') }}</li>
               {% endfor %}
             </ul>
+          {% else %}
+            <p>検出できた牌はありません</p>
           {% endif %}
 
           <p class="missing">不足分: {{ need_more }} 枚 → 下で選択してください</p>
 
           <div class="manual-select-row">
             {% for i in range(need_more) %}
-              <select name="manual_tile">
+              <select class="manual-select" name="manual_tile">
                 <option value="">-- 牌を選択 --</option>
                 <optgroup label="萬子">
                   {% for n in range(1,10) %}<option value="{{n}}m">{{n}}萬</option>{% endfor %}
@@ -169,10 +187,7 @@
             {% for t in tiles_14 %}
               <label>
                 <input type="radio" name="win_tile" value="{{ t }}" required>
-                <img
-                  src="{{ url_for('static', filename='tiles/' ~ t ~ '.png') }}"
-                  alt="{{ t }}"
-                >
+                {{ url_for('static', filename='tiles/' ~ t ~ '.png') }}
               </label>
             {% endfor %}
           </div>
@@ -211,7 +226,6 @@
               <input type="number" name="dora_count" value="0" min="0" max="10" style="width:80px;">
             </label>
           </div>
-
         {% endif %}
 
         <br>
@@ -229,6 +243,7 @@
     {% if result %}
     <div class="card-box">
       <h3>📋 結果</h3>
+
       <div class="tab-row">
         <button type="button" class="tab-btn active" onclick="showTab(event, 'tsumo')">ツモ和了</button>
         <button type="button" class="tab-btn" onclick="showTab(event, 'ron')">ロン和了</button>
@@ -272,18 +287,16 @@
       </div>
 
       <p style="margin-top:12px;"><b>使用した手牌:</b></p>
-        <div class="hand-tags">
-          {% for t in result.tiles_used %}
-            <img
-              src="{{ url_for('static', filename='tiles/' ~ t ~ '.png') }}"
-              alt="{{ t }}"
-            >
-          {% endfor %}
-        </div>
+      <div class="hand-tags">
+        {% for t in result.tiles_used %}
+          {{ url_for('static', filename='tiles/' ~ t ~ '.png') }}
+        {% endfor %}
+      </div>
     </div>
     {% endif %}
 
   </div>
+
 </div>
 
 <script>
@@ -301,4 +314,3 @@ function showTab(e, name) {
 
 </body>
 </html>
-{% endraw %}
