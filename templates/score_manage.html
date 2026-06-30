@@ -6,19 +6,19 @@
     <title>点数管理 - Macni雀</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-      /* ロゴ3連打ヒント用（任意） */
-      .app-title { cursor: pointer; user-select: none; -webkit-user-select: none; }
+      /* 賭博モード遷移用 */
+      .page-title { cursor: pointer; user-select: none; -webkit-user-select: none; }
     </style>
 </head>
 <body>
     <header class="header">
         <a href="{{ url_for('menu') }}" class="back-link">← メニュー</a>
-        <h1 class="app-title" id="app-title-logo" title="🀄">Macni雀</h1>
+        <h1 class="app-title">Macni雀</h1>
         <span class="nickname">{{ username }}</span>
     </header>
 
     <main class="main-container">
-        <h2 class="page-title">点数管理</h2>
+        <h2 class="page-title" id="page-title-trigger" title="🀄">点数管理</h2>
 
         <div class="date-section">
             <label>対局日：</label>
@@ -269,21 +269,12 @@
         }
 
         // ============================================
-        // 賭博モード移行：ロゴ3回タップ検知
+        // 賭博モード移行：「点数管理」タイトル1回タップ
         // ============================================
-        const logo = document.getElementById('app-title-logo');
-        let tapCount = 0;
-        let tapTimer = null;
-        function handleLogoTap() {
-            tapCount++;
-            clearTimeout(tapTimer);
-            tapTimer = setTimeout(() => { tapCount = 0; }, 800);
-            if (tapCount >= 3) {
-                tapCount = 0;
-                enterGambleMode();
-            }
-        }
-        logo.addEventListener('click', handleLogoTap);
+        const trigger = document.getElementById('page-title-trigger');
+        trigger.addEventListener('click', () => {
+            enterGambleMode();
+        });
 
         function enterGambleMode() {
             const groupSel = document.getElementById('group-select');
