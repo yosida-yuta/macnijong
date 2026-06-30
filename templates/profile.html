@@ -100,6 +100,8 @@
 </head>
 <body>
 
+
+
 <div class="container">
 
     <div class="header">
@@ -143,6 +145,46 @@
         </div>
     </div>
 </div>
+
+{% if rating_info %}
+<div class="rating-card" style="
+    background: linear-gradient(180deg, #0d3a2a 0%, #06281c 100%);
+    border: 2px solid #d4af37;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px 0;
+    color: #f5e6c0;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+">
+    <h3 style="margin:0 0 14px 0; color:#d4af37; letter-spacing:0.1em;">
+        🏆 社内レート
+    </h3>
+
+    <div style="font-size: 36px; color:#ffd700; font-weight:bold; text-align:center;
+                text-shadow: 0 0 12px rgba(212,175,55,0.5);">
+        {{ rating_info.rating }}
+    </div>
+    <div style="text-align:center; font-size:12px; color:#aaa; margin-bottom: 14px;">
+        Macni雀 RATING
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; font-size:14px;">
+        <div>📊 試合数：<strong>{{ rating_info.games }}</strong></div>
+        <div>📈 勝率：<strong>{{ rating_info.win_rate }}%</strong></div>
+        <div>🟢 勝ち：<strong>{{ rating_info.win }}</strong></div>
+        <div>🔴 負け：<strong>{{ rating_info.lose }}</strong></div>
+        {% if rating_info.rank %}
+        <div style="grid-column: span 2; margin-top:8px; text-align:center; color:#d4af37;">
+            🥇 社内順位：<strong>{{ rating_info.rank }}位</strong> / {{ rating_info.total_users }}人中
+        </div>
+        {% else %}
+        <div style="grid-column: span 2; margin-top:8px; text-align:center; color:#999;">
+            まだ公式試合がありません
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 
 </body>
 </html>

@@ -262,6 +262,122 @@ def score_manage():
         user_groups=user_groups,
     )
 
+# ============================================
+# 社内レート（ELO計算）
+# ============================================
+
+ELO_K_DEFAULT = 32     # 通常のK値
+ELO_K_NEWBIE = 64      # 試合数20戦未満のユーザー
+ELO_K_VETERAN = 16     # 試合数200戦以上のユーザー
+
+
+def _get_k_value(games: int) -> int:
+    """試合数に応じたK値を返す"""
+    if games < 20:
+        return ELO_K_NEWBIE
+    if games >= 200:
+        return ELO_K_VETERAN
+    return ELO_K_DEFAULT
+
+
+def _expected_score(r_self: float, r_opp: float) -> float:
+    """ELO期待値: 自分が相手より高ければ1に近づく"""
+    return 1.0 / (1.0 + 10 ** ((r_opp - r_self) / 400.0))
+
+
+def _actual_score(p_self: int, p_opp: int) -> float:
+    """点数差から実績スコア(0〜1)を導出
+       p_self - p_opp > 0 → 勝ち
+       同点 → 0.5
+       マイナス → 負け
+       スケーリング: 50pt差で完勝(1.0) / -50ptで完敗(0.0)
+    """
+    diff = p_self - p_opp
+    if diff == 0:
+        return 0.5
+    # 50ptで完全な勝敗扱い(0 or 1)になるよう線形補間
+    score = 0.5 + (diff / 100.0)
+    return max(0.0, min(1.0, score))
+
+
+def update_ratings_for_match(players: list, totals: list):
+    """
+    1セッション(=その日の点数管理)分のレートを4人分まとめて更新する
+
+    players: [{user_id:int, nickname:str}, ...] 4人
+    totals:  [int, int, int, int]  各プレイヤーの合計ポイント
+    """
+    if len(players) != 4 or len(totals) != 4:
+        return  # 4人麻雀以外は対象外
+
+    user_ids = [int(p["user_id"]) for p in players]
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # 現在のレートを取得（無ければ1500で初期登録）
+        ratings = {}
+        games_map = {}
+        for uid in user_ids:
+            cursor.execute(
+                "SELECT rating, games FROM user_ratings WHERE user_id = %s",
+                (uid,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                cursor.execute(
+                    "INSERT INTO user_ratings (user_id, rating) VALUES (%s, 1500)",
+                    (uid,)
+                )
+                ratings[uid] = 1500
+                games_map[uid] = 0
+            else:
+                ratings[uid] = int(row["rating"])
+                games_map[uid] = int(row["games"])
+
+        # 4人総当たり（6ペア）でELO差分を加算
+        diffs = {uid: 0.0 for uid in user_ids}
+        for i in range(4):
+            for j in range(i + 1, 4):
+                ui, uj = user_ids[i], user_ids[j]
+                ri, rj = ratings[ui], ratings[uj]
+                pi, pj = totals[i], totals[j]
+
+                ei = _expected_score(ri, rj)
+                ej = 1.0 - ei
+                si = _actual_score(pi, pj)
+                sj = 1.0 - si
+
+                ki = _get_k_value(games_map[ui])
+                kj = _get_k_value(games_map[uj])
+
+                diffs[ui] += ki * (si - ei)
+                diffs[uj] += kj * (sj - ej)
+
+        # 反映
+        for uid in user_ids:
+            new_rating = int(round(ratings[uid] + diffs[uid]))
+            won = 1 if diffs[uid] > 0 else 0
+            lost = 1 if diffs[uid] < 0 else 0
+
+            cursor.execute("""
+                UPDATE user_ratings
+                SET rating = %s,
+                    games  = games + 1,
+                    win    = win + %s,
+                    lose   = lose + %s
+                WHERE user_id = %s
+            """, (new_rating, won, lost, uid))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        print(f"[Rating] updated: {diffs}", flush=True)
+
+    except Exception as e:
+        print(f"[Rating ERROR] {e}", flush=True)
 
 @app.route("/score-manage/save", methods=["POST"])
 def score_manage_save():
@@ -307,6 +423,14 @@ def score_manage_save():
         conn.commit()
         cursor.close()
         conn.close()
+
+        
+        totals = [0, 0, 0, 0]
+        for r in rounds:
+            for i, sc in enumerate(r["scores"]):
+                totals[i] += int(sc)
+        update_ratings_for_match(players, totals)
+
 
         return jsonify({"status": "success", "message": "保存しました"})
 
@@ -1262,8 +1386,6 @@ def profile():
             (new_nickname, new_bio, user_id)
         )
         conn.commit()
-
-        # セッションも更新
         session["nickname"] = new_nickname
 
         flash("プロフィールを更新しました")
@@ -1271,12 +1393,50 @@ def profile():
         conn.close()
         return redirect(url_for("profile"))
 
-    # GET: プロフィールを取得
+    # GET: プロフィール取得
     cursor.execute(
         "SELECT id, employee_number, nickname, bio, created_at FROM users WHERE id=%s",
         (user_id,)
     )
     user = cursor.fetchone()
+
+    # ★ 社内レート情報を取得 ★
+    cursor.execute(
+        "SELECT rating, games, win, lose FROM user_ratings WHERE user_id=%s",
+        (user_id,)
+    )
+    rating_row = cursor.fetchone()
+
+    rating_info = {
+        "rating": 1500,
+        "games": 0,
+        "win": 0,
+        "lose": 0,
+        "win_rate": 0,
+        "rank": None,
+        "total_users": 0,
+    }
+    if rating_row:
+        rating_info["rating"] = int(rating_row["rating"])
+        rating_info["games"] = int(rating_row["games"])
+        rating_info["win"]   = int(rating_row["win"])
+        rating_info["lose"]  = int(rating_row["lose"])
+        if rating_info["games"] > 0:
+            rating_info["win_rate"] = round(rating_info["win"] / rating_info["games"] * 100)
+
+    # 順位算出（試合経験者のみ）
+    cursor.execute("""
+        SELECT user_id FROM user_ratings
+        WHERE games > 0
+        ORDER BY rating DESC
+    """)
+    rows = cursor.fetchall()
+    rating_info["total_users"] = len(rows)
+    for idx, r in enumerate(rows, start=1):
+        if r["user_id"] == user_id:
+            rating_info["rank"] = idx
+            break
+
     cursor.close()
     conn.close()
 
@@ -1284,6 +1444,7 @@ def profile():
         "profile.html",
         user=user,
         nickname=session.get("nickname"),
+        rating_info=rating_info,
     )
 
 # ============================================
