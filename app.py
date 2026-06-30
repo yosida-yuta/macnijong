@@ -1125,6 +1125,55 @@ def db_test():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/profile", methods=["GET", "POST"])
+def profile():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # POST: プロフィール更新
+    if request.method == "POST":
+        new_nickname = request.form.get("nickname", "").strip()
+        new_bio = request.form.get("bio", "").strip()
+
+        if not new_nickname:
+            flash("ニックネームを入力してください")
+            cursor.close()
+            conn.close()
+            return redirect(url_for("profile"))
+
+        cursor.execute(
+            "UPDATE users SET nickname=%s, bio=%s WHERE id=%s",
+            (new_nickname, new_bio, user_id)
+        )
+        conn.commit()
+
+        # セッションも更新
+        session["nickname"] = new_nickname
+
+        flash("プロフィールを更新しました")
+        cursor.close()
+        conn.close()
+        return redirect(url_for("profile"))
+
+    # GET: プロフィールを取得
+    cursor.execute(
+        "SELECT id, employee_number, nickname, bio, created_at FROM users WHERE id=%s",
+        (user_id,)
+    )
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        "profile.html",
+        user=user,
+        nickname=session.get("nickname"),
+    )
+
 # ============================================
 # 起動
 # ============================================
