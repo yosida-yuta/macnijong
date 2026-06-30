@@ -54,6 +54,68 @@ def get_db():
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
+def notify_teams_matching_success(post_id, requester_user_id):
+    """
+    マッチング成立時にTeamsチャネルへ通知する
+    """
+    webhook_url = os.getenv("TEAMS_WEBHOOK_URL")
+    if not webhook_url:
+        return  # Webhook未設定なら何もしない
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # 募集者と申請者の社員番号を取得
+        cursor.execute("""
+            SELECT
+                u_owner.employee_number AS owner_empnum,
+                u_req.employee_number AS req_empnum,
+                mp.target_date,
+                mp.time_range,
+                mp.location
+            FROM matching_posts mp
+            JOIN users u_owner ON mp.user_id = u_owner.id
+            JOIN users u_req ON u_req.id = %s
+            WHERE mp.id = %s
+        """, (requester_user_id, post_id))
+        info = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if not info:
+            return
+
+        owner_emp = info.get("owner_empnum")
+        req_emp = info.get("req_empnum")
+        target_date = info.get("target_date")
+        time_range = info.get("time_range") or "時間未定"
+        location = info.get("location") or "場所未定"
+
+        message_text = (
+            f"Macni雀 マッチング成立\n"
+            f"- 募集者: {owner_emp}\n"
+            f"- 申請者: {req_emp}\n"
+            f"- 日付: {target_date}\n"
+            f"- 時間帯: {time_range}\n"
+            f"- 場所: {location}"
+        )
+
+        payload = {
+            "text": message_text
+        }
+
+        requests.post(
+            webhook_url,
+            json=payload,
+            timeout=5
+        )
+
+    except Exception as e:
+        # 通知失敗は本処理を止めない
+        print(f"[Teams通知エラー] {e}")
+
 
 # ============================================
 # 共通ページ
@@ -642,6 +704,10 @@ def matching_accept(request_id):
         conn.commit()
         cursor.close()
         conn.close()
+
+        # マッチング成立時のみTeamsへ通知
+        notify_teams_matching_success(req["post_id"], req["requester_id"])
+
         flash("マッチング成立しました")
         return redirect(url_for("matching_requests"))
     except Exception as e:
