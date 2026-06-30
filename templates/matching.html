@@ -41,10 +41,10 @@
             {% if posts %}
                 <div class="post-list">
                     {% for p in posts %}
-                        <div class="post-card post-recruit">
+                        <div class="post-card {% if p.post_type == 'recruit' %}post-recruit{% else %}post-apply{% endif %}">
                             <div class="post-header">
                                 <span class="post-type">
-                                    {% if p.post_type == 'recruit' %}🟢 募集</span>
+                                    {% if p.post_type == 'recruit' %}🟢 募集{% else %}🔵 応募{% endif %}
                                 </span>
                                 <span class="post-status status-{{ p.status }}">
                                     {% if p.status == 'matched' %}成立{% else %}{{ p.status }}{% endif %}
@@ -55,7 +55,7 @@
                                 <div>📅 {{ p.target_date.strftime('%Y/%m/%d') }}</div>
                                 <div>⏰ {{ p.time_range or '時間未定' }}</div>
                                 <div>📍 {{ p.location }}</div>
-                                {% if p.status == 'open' %}
+                                {% if p.post_type == 'recruit' and p.status == 'open' %}
                                     <div>👥 あと{{ p.needed_count }}人募集中</div>
                                 {% endif %}
                                 {% if p.comment %}
@@ -81,7 +81,7 @@
             {% else %}
                 <div class="empty-state">
                     <p>まだ投稿がありません</p>
-                    <p>「募集する」から投稿してみましょう</p>
+                    <p>「募集する」「応募する」から投稿してみましょう</p>
                 </div>
             {% endif %}
         </div>
