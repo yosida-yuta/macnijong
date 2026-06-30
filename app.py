@@ -427,7 +427,6 @@ def matching():
         FROM matching_posts mp
         JOIN users u ON mp.user_id = u.id
         WHERE mp.status IN ('open', 'matched')
-        AND mp.post_type = 'recruit'
         AND mp.target_date >= CURDATE()
         ORDER BY mp.created_at DESC
     """)
@@ -458,12 +457,16 @@ def matching_post():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
+    post_type = request.form.get("post_type")
     target_date = request.form.get("target_date", "").strip()
     time_range = request.form.get("time_range", "").strip()
     location = request.form.get("location", "").strip()
     needed_count = request.form.get("needed_count", "0")
     comment = request.form.get("comment", "").strip()
 
+    if post_type not in ["recruit", "apply"]:
+        flash("投稿タイプが不正です")
+        return redirect(url_for("matching"))
     if not target_date:
         flash("日付を入力してください")
         return redirect(url_for("matching"))
@@ -472,11 +475,11 @@ def matching_post():
         return redirect(url_for("matching"))
 
     try:
-        needed_count = int(needed_count)
+        needed_count = int(needed_count) if post_type == "recruit" else 0
     except ValueError:
         needed_count = 0
 
-    if needed_count < 1 or needed_count > 3:
+    if post_type == "recruit" and (needed_count < 1 or needed_count > 3):
         flash("募集人数は1〜3人で入力してください")
         return redirect(url_for("matching"))
 
@@ -1121,55 +1124,6 @@ def db_test():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-@app.route("/profile", methods=["GET", "POST"])
-def profile():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    user_id = session["user_id"]
-    conn = get_db()
-    cursor = conn.cursor()
-
-    # POST: プロフィール更新
-    if request.method == "POST":
-        new_nickname = request.form.get("nickname", "").strip()
-        new_bio = request.form.get("bio", "").strip()
-
-        if not new_nickname:
-            flash("ニックネームを入力してください")
-            cursor.close()
-            conn.close()
-            return redirect(url_for("profile"))
-
-        cursor.execute(
-            "UPDATE users SET nickname=%s, bio=%s WHERE id=%s",
-            (new_nickname, new_bio, user_id)
-        )
-        conn.commit()
-
-        # セッションも更新
-        session["nickname"] = new_nickname
-
-        flash("プロフィールを更新しました")
-        cursor.close()
-        conn.close()
-        return redirect(url_for("profile"))
-
-    # GET: プロフィールを取得
-    cursor.execute(
-        "SELECT id, employee_number, nickname, bio, created_at FROM users WHERE id=%s",
-        (user_id,)
-    )
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
-
-    return render_template(
-        "profile.html",
-        user=user,
-        nickname=session.get("nickname"),
-    )
 
 # ============================================
 # 起動
