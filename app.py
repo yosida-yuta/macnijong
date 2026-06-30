@@ -55,12 +55,21 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def notify_teams_matching_success(post_id, requester_user_id):
+    
+    print("[DEBUG] notify function called")
+    print("[DEBUG] post_id =", post_id)
+    print("[DEBUG] requester_user_id =", requester_user_id)
+
     """
     マッチング成立時にTeamsチャネルへ通知する
     """
     webhook_url = os.getenv("TEAMS_WEBHOOK_URL")
+    print("[DEBUG] webhook_url =", webhook_url)
     if not webhook_url:
-        return  # Webhook未設定なら何もしない
+        print("[Teams通知] TEAMS_WEBHOOK_URL が設定されていません")
+        return
+    else:
+        print("[Teams通知] Webhook URL は設定されています")
 
     try:
         conn = get_db()
@@ -80,7 +89,7 @@ def notify_teams_matching_success(post_id, requester_user_id):
             WHERE mp.id = %s
         """, (requester_user_id, post_id))
         info = cursor.fetchone()
-
+        print("[DEBUG] DB info =", info)
         cursor.close()
         conn.close()
 
@@ -103,14 +112,45 @@ def notify_teams_matching_success(post_id, requester_user_id):
         )
 
         payload = {
-            "text": message_text
+            "type": "message",
+            "attachments": [
+                {
+                    "contentType": "application/vnd.microsoft.card.adaptive",
+                    "contentUrl": None,
+                    "content": {
+                        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                        "type": "AdaptiveCard",
+                        "version": "1.4",
+                        "body": [
+                            {
+                                "type": "TextBlock",
+                                "size": "Large",
+                                "weight": "Bolder",
+                                "text": "Macni雀 マッチング成立"
+                            },
+                            {
+                                "type": "TextBlock",
+                                "wrap": True,
+                                "text": message_text
+                            }
+                        ]
+                    }
+                }
+            ]
         }
 
-        requests.post(
+        response = requests.post(
             webhook_url,
             json=payload,
-            timeout=5
+            timeout=10
         )
+        
+        print("[DEBUG] status =", response.status_code)
+        print("[DEBUG] response =", response.text)
+
+        
+
+
 
     except Exception as e:
         # 通知失敗は本処理を止めない
@@ -671,6 +711,9 @@ def matching_requests():
 
 @app.route("/matching/requests/<int:request_id>/accept", methods=["POST"])
 def matching_accept(request_id):
+    print("[DEBUG] matching_accept called")
+    print("[DEBUG] request_id =", request_id)
+
     if "user_id" not in session:
         return redirect(url_for("login"))
 
@@ -686,6 +729,7 @@ def matching_accept(request_id):
             WHERE mr.id = %s
         """, (request_id,))
         req = cursor.fetchone()
+        print("[DEBUG] req =", req)
         if not req or req["post_owner_id"] != user_id:
             cursor.close()
             conn.close()
