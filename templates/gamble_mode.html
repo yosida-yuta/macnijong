@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>賭博モード - Macni雀</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Noto Serif JP', 'Yu Mincho', '游明朝', serif;
+    background:
+      radial-gradient(ellipse at top, #1a5d44 0%, #0b3d2e 50%, #06281c 100%);
+    color: #f5e6c0;
+    min-height: 100vh;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0);
+    background-size: 5px 5px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .gamble-header {
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(180deg, #0a2818 0%, #0d3a2a 100%);
+    border-bottom: 2px solid #d4af37;
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  }
+  .back-btn {
+    background: transparent;
+    border: 1px solid #d4af37;
+    color: #d4af37;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .back-btn:hover { background: rgba(212,175,55,0.18); }
+  .gamble-title {
+    font-size: 22px;
+    color: #ffd700;
+    text-shadow: 0 0 12px rgba(212,175,55,0.6), 0 2px 4px rgba(0,0,0,0.6);
+    letter-spacing: 0.15em;
+    margin: 0;
+    font-weight: bold;
+  }
+  .gamble-title::before { content: '🀄 '; }
+  .gamble-title::after { content: ' 🀄'; }
+  .nickname-tag {
+    color: #f5e6c0;
+    font-size: 13px;
+    padding: 4px 12px;
+    border: 1px solid rgba(212,175,55,0.4);
+    border-radius: 12px;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    padding: 20px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .info-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .info-pill {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(212,175,55,0.35);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+  }
+  .info-pill strong { color: #d4af37; margin-right: 6px; }
+
+  .rate-section {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid #d4af37;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 0 24px rgba(212,175,55,0.05);
+  }
+  .rate-title {
+    font-size: 16px;
+    color: #d4af37;
+    margin: 0 0 14px 0;
+    letter-spacing: 0.12em;
+  }
+  .rate-presets {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 640px) {
+    .rate-presets { grid-template-columns: repeat(3, 1fr); }
+  }
+  .rate-btn {
+    background: linear-gradient(180deg, #1f5d4a 0%, #133b2e 100%);
+    border: 1px solid rgba(212,175,55,0.5);
+    color: #f5e6c0;
+    padding: 12px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: bold;
+    transition: all 0.15s;
+  }
+  .rate-btn:hover {
+    background: linear-gradient(180deg, #2a7a60 0%, #1a4d3a 100%);
+    transform: translateY(-1px);
+  }
+  .rate-btn.active {
+    background: linear-gradient(180deg, #d4af37 0%, #a8862a 100%);
+    color: #0a2818;
+    border-color: #ffd700;
+    box-shadow: 0 0 14px rgba(212,175,55,0.7);
+  }
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .rate-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    background: linear-gradient(90deg, #1a4d3a, #d4af37);
+    border-radius: 4px;
+    outline: none;
+  }
+  .rate-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: #ffd700;
+    border: 2px solid #0a2818;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(212,175,55,0.8);
+  }
+  .rate-slider::-moz-range-thumb {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: #ffd700;
+    border: 2px solid #0a2818;
+    cursor: pointer;
+  }
+  .rate-display {
+    font-size: 30px;
+    color: #ffd700;
+    font-weight: bold;
+    min-width: 120px;
+    text-align: right;
+    text-shadow: 0 0 10px rgba(212,175,55,0.6);
+    letter-spacing: 0.05em;
+  }
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 800px) {
+    .results-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  .player-card {
+    background: linear-gradient(180deg, #faf0d5 0%, #e8d4a3 100%);
+    border: 2px solid #d4af37;
+    border-radius: 10px;
+    padding: 16px 12px;
+    color: #1a1a1a;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.6);
+    text-align: center;
+    position: relative;
+  }
+  .player-card::after {
+    content: '';
+    position: absolute;
+    top: 4px; left: 4px; right: 4px; bottom: 4px;
+    border: 1px solid rgba(212,175,55,0.4);
+    border-radius: 7px;
+    pointer-events: none;
+  }
+  .player-name {
+    font-size: 15px;
+    font-weight: bold;
+    margin: 0 0 10px 0;
+    color: #5a3a1a;
+    border-bottom: 1px solid rgba(201,169,107,0.6);
+    padding-bottom: 8px;
+  }
+  .player-points {
+    font-size: 18px;
+    margin: 4px 0;
+    color: #5a3a1a;
+    font-weight: bold;
+  }
+  .player-mpoints {
+    font-size: 26px;
+    font-weight: bold;
+    margin: 10px 0 2px 0;
+    color: #1a1a1a;
+  }
+  .player-mpoints.positive { color: #b8860b; }
+  .player-mpoints.negative { color: #b22222; }
+  .player-mpoints-label {
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-top: 0;
+  }
+
+  .table-wrap {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(212,175,55,0.35);
+    border-radius: 10px;
+    padding: 16px;
+    overflow-x: auto;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+  }
+  .gamble-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: #f5e6c0;
+    min-width: 500px;
+  }
+  .gamble-table th, .gamble-table td {
+    padding: 10px 8px;
+    text-align: center;
+    border-bottom: 1px solid rgba(212,175,55,0.2);
+  }
+  .gamble-table th {
+    background: rgba(0,0,0,0.45);
+    color: #d4af37;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+  }
+  .gamble-input {
+    width: 70px;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(212,175,55,0.3);
+    color: #f5e6c0;
+    padding: 6px;
+    border-radius: 4px;
+    text-align: center;
+    font-family: inherit;
+    font-size: 14px;
+  }
+  .gamble-input:focus {
+    outline: none;
+    border-color: #d4af37;
+    box-shadow: 0 0 6px rgba(212,175,55,0.4);
+  }
+  .total-row td {
+    background: rgba(212,175,55,0.12);
+    color: #ffd700;
+    font-weight: bold;
+    border-top: 2px solid #d4af37;
+  }
+  .mpoint-row td {
+    background: rgba(212,175,55,0.22);
+    color: #ffd700;
+    font-weight: bold;
+    font-size: 16px;
+  }
+  .warning-tag {
+    text-align: center;
+    color: #d4af37;
+    font-size: 12px;
+    margin-top: 16px;
+    opacity: 0.75;
+    letter-spacing: 0.15em;
+  }
+</style>
+</head>
+<body>
+
+<header class="gamble-header">
+  <a href="#" id="back-link" class="back-btn">← 点数管理</a>
+  <h1 class="gamble-title">賭博モード</h1>
+  <span class="nickname-tag">{{ username }}</span>
+</header>
+
+<div class="container">
+
+  <div class="info-bar" id="info-bar"></div>
+
+  <div class="rate-section">
+    <h2 class="rate-title">🎲 レート設定（Mポイント換算）</h2>
+    <div class="rate-presets" id="rate-presets"></div>
+    <div class="slider-row">
+      <input type="range" class="rate-slider" id="rate-slider" min="10" max="300" step="10" value="100">
+      <div class="rate-display" id="rate-display">×100</div>
+    </div>
+  </div>
+
+  <div class="results-grid" id="results-grid"></div>
+
+  <div class="table-wrap">
+    <table class="gamble-table">
+      <thead>
+        <tr id="gamble-thead-row">
+          <th>半荘</th>
+        </tr>
+      </thead>
+      <tbody id="gamble-tbody"></tbody>
+      <tfoot>
+        <tr class="total-row" id="total-row">
+          <td>合計</td>
+        </tr>
+        <tr class="mpoint-row" id="mpoint-row">
+          <td>Mポイント</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <p class="warning-tag">※ このページの変更は保存されません。「← 点数管理」で元のデータに戻ります。</p>
+</div>
+
+<script>
+  const SNAPSHOT_KEY = 'macnijong_score_snapshot';
+  const snapshotRaw = sessionStorage.getItem(SNAPSHOT_KEY);
+  let snapshot = null;
+  try { snapshot = JSON.parse(snapshotRaw); } catch (e) { snapshot = null; }
+
+  if (!snapshot) {
+    alert('点数管理のデータが見つかりません。点数管理画面に戻ります。');
+    window.location.href = '/score-manage';
+  }
+
+  // 作業コピー（編集はこちらだけ）
+  const workData = JSON.parse(JSON.stringify(snapshot));
+  let currentRate = 100;
+
+  // 情報バー
+  const infoBar = document.getElementById('info-bar');
+  infoBar.innerHTML = `
+    <div class="info-pill"><strong>対局日:</strong>${escapeHtml(snapshot.playedDate || '未設定')}</div>
+    <div class="info-pill"><strong>グループ:</strong>${escapeHtml(snapshot.groupName || '個人記録')}</div>
+  `;
+
+  // レートプリセット
+  const presetsDiv = document.getElementById('rate-presets');
+  [10, 50, 100, 150, 200, 300].forEach(rate => {
+    const btn = document.createElement('button');
+    btn.className = 'rate-btn';
+    btn.textContent = '×' + rate;
+    btn.dataset.rate = rate;
+    btn.addEventListener('click', () => setRate(rate));
+    presetsDiv.appendChild(btn);
+  });
+
+  // スライダー
+  const slider = document.getElementById('rate-slider');
+  const display = document.getElementById('rate-display');
+  slider.addEventListener('input', () => setRate(parseInt(slider.value)));
+
+  function setRate(rate) {
+    currentRate = rate;
+    slider.value = rate;
+    display.textContent = '×' + rate;
+    document.querySelectorAll('.rate-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.rate) === rate);
+    });
+    renderResults();
+  }
+
+  // テーブルヘッダー（プレイヤー名）
+  const headRow = document.getElementById('gamble-thead-row');
+  workData.players.forEach((p, i) => {
+    const th = document.createElement('th');
+    th.textContent = p.nickname || ('プレイヤー' + (i + 1));
+    headRow.appendChild(th);
+  });
+
+  // 半荘の行
+  const tbody = document.getElementById('gamble-tbody');
+  workData.rounds.forEach((round, ri) => {
+    const tr = document.createElement('tr');
+    const td0 = document.createElement('td');
+    td0.textContent = '半荘' + (ri + 1);
+    tr.appendChild(td0);
+
+    round.scores.forEach((sc, pi) => {
+      const td = document.createElement('td');
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'gamble-input';
+      input.value = (sc === null || sc === undefined) ? '' : sc;
+      input.addEventListener('input', () => {
+        const v = input.value === '' ? 0 : parseInt(input.value);
+        workData.rounds[ri].scores[pi] = isNaN(v) ? 0 : v;
+        renderResults();
+      });
+      td.appendChild(input);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  // フッター（合計 / Mポイント）にプレイヤー列追加
+  const totalRow = document.getElementById('total-row');
+  const mpointRow = document.getElementById('mpoint-row');
+  workData.players.forEach((_, pi) => {
+    const tdT = document.createElement('td');
+    tdT.dataset.player = pi;
+    tdT.className = 'total-cell';
+    totalRow.appendChild(tdT);
+
+    const tdM = document.createElement('td');
+    tdM.dataset.player = pi;
+    tdM.className = 'mpoint-cell';
+    mpointRow.appendChild(tdM);
+  });
+
+  // プレイヤーカード
+  const grid = document.getElementById('results-grid');
+  workData.players.forEach((p, i) => {
+    const card = document.createElement('div');
+    card.className = 'player-card';
+    card.innerHTML = `
+      <div class="player-name">${escapeHtml(p.nickname || ('プレイヤー' + (i + 1)))}</div>
+      <div class="player-points" data-player="${i}">+0 pt</div>
+      <div class="player-mpoints" data-player="${i}">±0 M</div>
+      <div class="player-mpoints-label">M ポイント</div>
+    `;
+    grid.appendChild(card);
+  });
+
+  function renderResults() {
+    const totals = [0, 0, 0, 0];
+    workData.rounds.forEach(round => {
+      round.scores.forEach((sc, pi) => {
+        const v = (sc === null || sc === undefined) ? 0 : parseInt(sc);
+        totals[pi] += isNaN(v) ? 0 : v;
+      });
+    });
+
+    totals.forEach((t, pi) => {
+      const mp = t * currentRate;
+
+      const pointsEl = document.querySelector(`.player-points[data-player="${pi}"]`);
+      const mpointsEl = document.querySelector(`.player-mpoints[data-player="${pi}"]`);
+      if (pointsEl) pointsEl.textContent = (t > 0 ? '+' : '') + t + ' pt';
+      if (mpointsEl) {
+        mpointsEl.textContent = (mp > 0 ? '+' : '') + mp.toLocaleString() + ' M';
+        mpointsEl.classList.toggle('positive', mp > 0);
+        mpointsEl.classList.toggle('negative', mp < 0);
+      }
+
+      const tCell = document.querySelector(`.total-cell[data-player="${pi}"]`);
+      const mCell = document.querySelector(`.mpoint-cell[data-player="${pi}"]`);
+      if (tCell) tCell.textContent = (t > 0 ? '+' : '') + t;
+      if (mCell) mCell.textContent = (mp > 0 ? '+' : '') + mp.toLocaleString() + ' M';
+    });
+  }
+
+  // 戻るボタン（sessionStorage はそのまま残す → score_manage が復元する）
+  document.getElementById('back-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    window.location.href = '/score-manage';
+  });
+
+  // HTMLエスケープ
+  function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  // 初期表示
+  setRate(100);
+</script>
+</body>
+</html>

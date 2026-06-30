@@ -55,27 +55,21 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def notify_teams_matching_success(post_id, requester_user_id):
-    
-    print("[DEBUG] notify function called")
-    print("[DEBUG] post_id =", post_id)
-    print("[DEBUG] requester_user_id =", requester_user_id)
+    print("[DEBUG] notify function called", flush=True)
+    print("[DEBUG] post_id =", post_id, flush=True)
+    print("[DEBUG] requester_user_id =", requester_user_id, flush=True)
 
-    """
-    マッチング成立時にTeamsチャネルへ通知する
-    """
     webhook_url = os.getenv("TEAMS_WEBHOOK_URL")
-    print("[DEBUG] webhook_url =", webhook_url)
+    print("[DEBUG] webhook_url =", webhook_url, flush=True)
+
     if not webhook_url:
-        print("[Teams通知] TEAMS_WEBHOOK_URL が設定されていません")
+        print("[Teams通知] TEAMS_WEBHOOK_URL が設定されていません", flush=True)
         return
-    else:
-        print("[Teams通知] Webhook URL は設定されています")
 
     try:
         conn = get_db()
         cursor = conn.cursor()
 
-        # 募集者と申請者の社員番号を取得
         cursor.execute("""
             SELECT
                 u_owner.employee_number AS owner_empnum,
@@ -89,21 +83,22 @@ def notify_teams_matching_success(post_id, requester_user_id):
             WHERE mp.id = %s
         """, (requester_user_id, post_id))
         info = cursor.fetchone()
-        print("[DEBUG] DB info =", info)
         cursor.close()
         conn.close()
+
+        print("[DEBUG] DB info =", info, flush=True)
 
         if not info:
             return
 
-        owner_emp = info.get("owner_empnum")
-        req_emp = info.get("req_empnum")
+        owner_emp   = info.get("owner_empnum")
+        req_emp     = info.get("req_empnum")
         target_date = info.get("target_date")
-        time_range = info.get("time_range") or "時間未定"
-        location = info.get("location") or "場所未定"
+        time_range  = info.get("time_range") or "時間未定"
+        location    = info.get("location") or "場所未定"
 
         message_text = (
-            f"Macni雀 マッチング成立\n"
+            f"Macni雀 マッチング成立\n\n"
             f"- 募集者: {owner_emp}\n"
             f"- 申請者: {req_emp}\n"
             f"- 日付: {target_date}\n"
@@ -111,12 +106,12 @@ def notify_teams_matching_success(post_id, requester_user_id):
             f"- 場所: {location}"
         )
 
+        # ✅ Incoming Webhook 用 MessageCard
         payload = {
             "type": "message",
             "attachments": [
                 {
                     "contentType": "application/vnd.microsoft.card.adaptive",
-                    "contentUrl": None,
                     "content": {
                         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
                         "type": "AdaptiveCard",
@@ -144,17 +139,12 @@ def notify_teams_matching_success(post_id, requester_user_id):
             json=payload,
             timeout=10
         )
-        
-        print("[DEBUG] status =", response.status_code)
-        print("[DEBUG] response =", response.text)
 
-        
-
-
+        print("[DEBUG] status =", response.status_code, flush=True)
+        print("[DEBUG] response =", response.text, flush=True)
 
     except Exception as e:
-        # 通知失敗は本処理を止めない
-        print(f"[Teams通知エラー] {e}")
+        print(f"[Teams通知エラー] {e}", flush=True)
 
 
 # ============================================
@@ -323,6 +313,18 @@ def score_manage_save():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ============================================
+# 賭博モード（DB保存なし・クライアントサイドのみ）
+# ============================================
+
+@app.route("/gamble-mode")
+def gamble_mode():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    return render_template(
+        "gamble_mode.html",
+        username=session.get("nickname"),
+    )
 
 # ============================================
 # グループ機能

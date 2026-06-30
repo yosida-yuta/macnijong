@@ -5,11 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>点数管理 - Macni雀</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+      /* ロゴ3連打ヒント用（任意） */
+      .app-title { cursor: pointer; user-select: none; -webkit-user-select: none; }
+    </style>
 </head>
 <body>
     <header class="header">
         <a href="{{ url_for('menu') }}" class="back-link">← メニュー</a>
-        <h1 class="app-title">Macni雀</h1>
+        <h1 class="app-title" id="app-title-logo" title="🀄">Macni雀</h1>
         <span class="nickname">{{ username }}</span>
     </header>
 
@@ -21,7 +25,6 @@
             <input type="date" id="played-date" required>
         </div>
 
-        
         <div class="date-section">
             <label>グループ：</label>
             <select id="group-select">
@@ -31,7 +34,6 @@
                 {% endfor %}
             </select>
         </div>
-
 
         <div class="table-container">
             <table id="score-table">
@@ -114,12 +116,18 @@
     </main>
 
     <script>
+        const SNAPSHOT_KEY = 'macnijong_score_snapshot';
+
         // 今日の日付を初期値に
         document.getElementById('played-date').valueAsDate = new Date();
 
         // 半荘行を追加
         let roundCount = 1;
         document.getElementById('add-round-btn').addEventListener('click', () => {
+            addRoundRow();
+        });
+
+        function addRoundRow() {
             const tbody = document.getElementById('score-tbody');
             const newRow = document.createElement('tr');
             newRow.className = 'round-row';
@@ -134,16 +142,14 @@
             tbody.appendChild(newRow);
             roundCount++;
             attachEvents();
-        });
+        }
 
         // イベントハンドラを再アタッチ
         function attachEvents() {
-            // 入力時の合計計算
             document.querySelectorAll('.score-input').forEach(input => {
                 input.removeEventListener('input', updateTotals);
                 input.addEventListener('input', updateTotals);
             });
-            // 行削除
             document.querySelectorAll('.delete-row-btn').forEach(btn => {
                 btn.removeEventListener('click', deleteRow);
                 btn.addEventListener('click', deleteRow);
@@ -194,7 +200,6 @@
                 return;
             }
 
-            // プレイヤー情報
             const players = [];
             const playerSelects = document.querySelectorAll('.player-select');
             for (const sel of playerSelects) {
@@ -209,7 +214,6 @@
                 });
             }
 
-            // 半荘データ
             const rounds = [];
             const rows = document.querySelectorAll('#score-tbody tr');
             for (let i = 0; i < rows.length; i++) {
@@ -222,7 +226,6 @@
                     }
                     scores.push(parseInt(input.value));
                 }
-                // 合計が0かチェック
                 if (scores.reduce((a, b) => a + b, 0) !== 0) {
                     showMessage(`半荘${i + 1}の合計が0になっていません`, 'error');
                     return;
@@ -230,7 +233,6 @@
                 rounds.push({ round_number: i + 1, scores: scores });
             }
 
-           // サーバーに送信
             try {
                 const groupId = document.getElementById('group-select').value;
                 const response = await fetch('/score-manage/save', {
@@ -245,6 +247,7 @@
                 });
                 const result = await response.json();
                 if (result.status === 'success') {
+                    sessionStorage.removeItem(SNAPSHOT_KEY);
                     showMessage(result.message, 'success');
                 } else {
                     showMessage(result.message, 'error');
@@ -265,8 +268,108 @@
             }, 3000);
         }
 
+        // ============================================
+        // 賭博モード移行：ロゴ3回タップ検知
+        // ============================================
+        const logo = document.getElementById('app-title-logo');
+        let tapCount = 0;
+        let tapTimer = null;
+        function handleLogoTap() {
+            tapCount++;
+            clearTimeout(tapTimer);
+            tapTimer = setTimeout(() => { tapCount = 0; }, 800);
+            if (tapCount >= 3) {
+                tapCount = 0;
+                enterGambleMode();
+            }
+        }
+        logo.addEventListener('click', handleLogoTap);
+
+        function enterGambleMode() {
+            const groupSel = document.getElementById('group-select');
+            const groupOpt = groupSel.options[groupSel.selectedIndex];
+            const snapshot = {
+                playedDate: document.getElementById('played-date').value,
+                groupId: groupSel.value,
+                groupName: groupOpt ? groupOpt.textContent.trim() : '',
+                players: [],
+                rounds: [],
+                roundCount: roundCount
+            };
+
+            document.querySelectorAll('.player-select').forEach(sel => {
+                const opt = sel.options[sel.selectedIndex];
+                snapshot.players.push({
+                    user_id: sel.value,
+                    nickname: (opt && opt.dataset.nickname) ? opt.dataset.nickname
+                             : (opt ? opt.textContent.trim() : '')
+                });
+            });
+
+            const rows = document.querySelectorAll('#score-tbody tr');
+            rows.forEach((row, i) => {
+                const scores = [];
+                row.querySelectorAll('.score-input').forEach(input => {
+                    scores.push(input.value === '' ? null : parseInt(input.value));
+                });
+                snapshot.rounds.push({ round_number: i + 1, scores: scores });
+            });
+
+            sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+            window.location.href = '/gamble-mode';
+        }
+
+        // ============================================
+        // 賭博モードから戻った時の復元処理
+        // ============================================
+        function restoreSnapshotIfAny() {
+            const raw = sessionStorage.getItem(SNAPSHOT_KEY);
+            if (!raw) return;
+            let s;
+            try { s = JSON.parse(raw); } catch (e) { return; }
+
+            if (s.playedDate) {
+                document.getElementById('played-date').value = s.playedDate;
+            }
+            if (s.groupId !== undefined && s.groupId !== null) {
+                document.getElementById('group-select').value = s.groupId;
+            }
+            if (Array.isArray(s.players)) {
+                document.querySelectorAll('.player-select').forEach((sel, idx) => {
+                    const p = s.players[idx];
+                    if (p && p.user_id !== '' && p.user_id !== null && p.user_id !== undefined) {
+                        sel.value = p.user_id;
+                    }
+                });
+            }
+            if (Array.isArray(s.rounds) && s.rounds.length > 1) {
+                while (document.querySelectorAll('#score-tbody tr').length < s.rounds.length) {
+                    addRoundRow();
+                }
+            }
+            if (Array.isArray(s.rounds)) {
+                const rows = document.querySelectorAll('#score-tbody tr');
+                s.rounds.forEach((r, i) => {
+                    if (!rows[i]) return;
+                    const inputs = rows[i].querySelectorAll('.score-input');
+                    if (Array.isArray(r.scores)) {
+                        r.scores.forEach((sc, j) => {
+                            if (inputs[j] && sc !== null && sc !== undefined) {
+                                inputs[j].value = sc;
+                            }
+                        });
+                    }
+                });
+            }
+
+            updateTotals();
+            sessionStorage.removeItem(SNAPSHOT_KEY);
+        }
+
         // 初回イベント登録
         attachEvents();
+        // 賭博モードから戻ってきたデータを復元
+        restoreSnapshotIfAny();
     </script>
 </body>
 </html>
