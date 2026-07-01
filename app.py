@@ -111,11 +111,6 @@ def is_admin_user() -> bool:
         cursor.close()
         conn.close()
 
-        
-        print(f"[is_admin] session user_id={session.get('user_id')}", flush=True)
-        print(f"[is_admin] db employee_number={row['employee_number'] if row else None}", flush=True)
-        print(f"[is_admin] .env admin_list={admin_list}", flush=True)
-
 
         if not row:
             return False
