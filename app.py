@@ -1,10 +1,3 @@
-from flask_wtf import CSRFProtect
-
-csrf = CSRFProtect(app)
-
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-
 import os
 import base64
 import hashlib
@@ -23,6 +16,10 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+from flask_wtf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.tile import TilesConverter
@@ -45,12 +42,18 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
 )
 
+# CSRF
+csrf = CSRFProtect(app)
+
+# レートリミット
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=["300 per hour"]  # アプリ全体のデフォルト
+    default_limits=["300 per hour"]
 )
 limiter.init_app(app)
 
+
+# セキュリティヘッダー
 @app.after_request
 def add_security_headers(resp):
     resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
@@ -58,7 +61,6 @@ def add_security_headers(resp):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "no-referrer"
     resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-    # 既存のUIを壊さないよう緩めのCSP（あとで厳格化可能）
     resp.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "img-src 'self' data: blob:; "
