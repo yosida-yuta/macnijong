@@ -1,10 +1,13 @@
 import os
 import base64
 import hashlib
-from datetime import date
+import secrets
+from datetime import date, datetime, timedelta
 
 import pymysql
 import requests
+import boto3
+import bcrypt
 from dotenv import load_dotenv
 
 from flask import (
@@ -52,7 +55,74 @@ def get_db():
 
 
 def hash_password(password):
+    """旧 SHA-256 ハッシュ（既存互換用）"""
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+# ============================================
+# パスワード（bcrypt）
+# ============================================
+
+def hash_password_bcrypt(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password_bcrypt(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
+    except Exception:
+        return False
+
+
+# ============================================
+# メール認証 & SES
+# ============================================
+
+ALLOWED_DOMAINS = ("macnica.co.jp", "pn.macnica.co.jp")
+
+
+def is_allowed_email(email: str) -> bool:
+    if not email or "@" not in email:
+        return False
+    domain = email.strip().lower().split("@")[-1]
+    return domain in ALLOWED_DOMAINS
+
+
+def generate_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def send_verification_email(to_email: str, token: str):
+    base_url = os.getenv("APP_BASE_URL", "http://localhost:5000")
+    link = f"{base_url}/register/verify?token={token}"
+    subject = "【Macni雀】アカウント登録の確認"
+    body = f"""Macni雀 アカウント登録リクエストを受け付けました。
+
+下記のリンクから登録を完了してください（15分以内に有効）：
+
+{link}
+
+このメールに心当たりがない場合は破棄してください。
+"""
+    client = boto3.client(
+        "ses",
+        region_name=os.getenv("AWS_REGION", "ap-northeast-1"),
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    )
+    client.send_email(
+        Source=os.getenv("SES_SENDER_EMAIL"),
+        Destination={"ToAddresses": [to_email]},
+        Message={
+            "Subject": {"Data": subject, "Charset": "UTF-8"},
+            "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
+        },
+    )
+
+
+# ============================================
+# Teams通知（既存機能）
+# ============================================
 
 def notify_teams_matching_success(post_id, requester_user_id):
     print("[DEBUG] notify function called", flush=True)
@@ -106,7 +176,6 @@ def notify_teams_matching_success(post_id, requester_user_id):
             f"- 場所: {location}"
         )
 
-        # ✅ Incoming Webhook 用 MessageCard
         payload = {
             "type": "message",
             "attachments": [
@@ -134,12 +203,7 @@ def notify_teams_matching_success(post_id, requester_user_id):
             ]
         }
 
-        response = requests.post(
-            webhook_url,
-            json=payload,
-            timeout=10
-        )
-
+        response = requests.post(webhook_url, json=payload, timeout=10)
         print("[DEBUG] status =", response.status_code, flush=True)
         print("[DEBUG] response =", response.text, flush=True)
 
@@ -162,21 +226,20 @@ def index():
 def login():
     error = None
     if request.method == "POST":
-        emp_num = request.form.get("employee_number", "")
+        emp_num = request.form.get("employee_number", "").strip()
         password = request.form.get("password", "")
-        pw_hash = hash_password(password)
 
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM users WHERE employee_number=%s AND password_hash=%s",
-            (emp_num, pw_hash)
+            "SELECT * FROM users WHERE employee_number=%s",
+            (emp_num,)
         )
         user = cursor.fetchone()
         cursor.close()
         conn.close()
 
-        if user:
+        if user and verify_password_bcrypt(password, user["password_hash"]):
             session["user_id"] = user["id"]
             session["nickname"] = user["nickname"]
             return redirect(url_for("menu"))
@@ -188,31 +251,105 @@ def login():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
+    """メールアドレスを受け取り、認証メールを送信"""
     error = None
+    sent = False
     if request.method == "POST":
-        nickname = request.form.get("nickname", "")
-        emp_num = request.form.get("employee_number", "")
-        password = request.form.get("password", "")
-        pw_hash = hash_password(password)
+        email = request.form.get("email", "").strip().lower()
 
-        conn = get_db()
-        cursor = conn.cursor()
+        if not is_allowed_email(email):
+            error = "社員メールアドレス（@macnica.co.jp / @pn.macnica.co.jp）を入力してください"
+        else:
+            try:
+                token = generate_token()
+                expires_at = datetime.utcnow() + timedelta(minutes=15)
+
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO email_verifications (email, token, expires_at) VALUES (%s, %s, %s)",
+                    (email, token, expires_at),
+                )
+                conn.commit()
+                cursor.close()
+                conn.close()
+
+                send_verification_email(email, token)
+                sent = True
+            except Exception as e:
+                error = f"送信エラー: {str(e)}"
+
+    return render_template("register.html", error=error, sent=sent)
+
+
+@app.route("/register/verify", methods=["GET", "POST"])
+def register_verify():
+    """メール内のリンクから来るページ。本登録処理。"""
+    token = request.args.get("token") or request.form.get("token")
+    if not token:
+        return "トークンがありません", 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM email_verifications WHERE token=%s",
+        (token,)
+    )
+    row = cursor.fetchone()
+
+    if not row:
+        cursor.close(); conn.close()
+        return "無効なトークンです", 400
+
+    if row["used"]:
+        cursor.close(); conn.close()
+        return "このトークンは既に使用済みです", 400
+
+    if row["expires_at"] < datetime.utcnow():
+        cursor.close(); conn.close()
+        return "トークンの有効期限が切れています", 400
+
+    if request.method == "POST":
+        nickname = request.form.get("nickname", "").strip()
+        emp_num = request.form.get("employee_number", "").strip()
+        password = request.form.get("password", "")
+
+        if not (nickname and emp_num and password):
+            cursor.close(); conn.close()
+            return render_template("register_complete.html",
+                                   token=token, email=row["email"],
+                                   error="全ての項目を入力してください")
+
+        if len(password) < 8:
+            cursor.close(); conn.close()
+            return render_template("register_complete.html",
+                                   token=token, email=row["email"],
+                                   error="パスワードは8文字以上にしてください")
+
+        pw_hash = hash_password_bcrypt(password)
+
         try:
             cursor.execute(
-                "INSERT INTO users (employee_number, password_hash, nickname) VALUES (%s, %s, %s)",
-                (emp_num, pw_hash, nickname)
+                "INSERT INTO users (employee_number, password_hash, nickname, email) VALUES (%s, %s, %s, %s)",
+                (emp_num, pw_hash, nickname, row["email"])
+            )
+            cursor.execute(
+                "UPDATE email_verifications SET used=1 WHERE token=%s",
+                (token,)
             )
             conn.commit()
-            cursor.close()
-            conn.close()
-            flash("登録完了しました。ログインしてください。")
+            cursor.close(); conn.close()
+            flash("登録が完了しました。ログインしてください。")
             return redirect(url_for("login"))
         except pymysql.err.IntegrityError:
-            error = "その社員番号は既に登録されています"
-            cursor.close()
-            conn.close()
+            cursor.close(); conn.close()
+            return render_template("register_complete.html",
+                                   token=token, email=row["email"],
+                                   error="社員番号またはメールアドレスは既に使用されています")
 
-    return render_template("register.html", error=error)
+    cursor.close(); conn.close()
+    return render_template("register_complete.html",
+                           token=token, email=row["email"], error=None)
 
 
 @app.route("/menu")
@@ -262,17 +399,15 @@ def score_manage():
         user_groups=user_groups,
     )
 
-# ============================================
-# 社内レート（ELO計算）
-# ============================================
 
-ELO_K_DEFAULT = 32     # 通常のK値
-ELO_K_NEWBIE = 64      # 試合数20戦未満のユーザー
-ELO_K_VETERAN = 16     # 試合数200戦以上のユーザー
+# --- ELO レーティング（Phase 1）---
+
+ELO_K_DEFAULT = 32
+ELO_K_NEWBIE = 64
+ELO_K_VETERAN = 16
 
 
 def _get_k_value(games: int) -> int:
-    """試合数に応じたK値を返す"""
     if games < 20:
         return ELO_K_NEWBIE
     if games >= 200:
@@ -281,34 +416,20 @@ def _get_k_value(games: int) -> int:
 
 
 def _expected_score(r_self: float, r_opp: float) -> float:
-    """ELO期待値: 自分が相手より高ければ1に近づく"""
     return 1.0 / (1.0 + 10 ** ((r_opp - r_self) / 400.0))
 
 
 def _actual_score(p_self: int, p_opp: int) -> float:
-    """点数差から実績スコア(0〜1)を導出
-       p_self - p_opp > 0 → 勝ち
-       同点 → 0.5
-       マイナス → 負け
-       スケーリング: 50pt差で完勝(1.0) / -50ptで完敗(0.0)
-    """
     diff = p_self - p_opp
     if diff == 0:
         return 0.5
-    # 50ptで完全な勝敗扱い(0 or 1)になるよう線形補間
     score = 0.5 + (diff / 100.0)
     return max(0.0, min(1.0, score))
 
 
 def update_ratings_for_match(players: list, totals: list):
-    """
-    1セッション(=その日の点数管理)分のレートを4人分まとめて更新する
-
-    players: [{user_id:int, nickname:str}, ...] 4人
-    totals:  [int, int, int, int]  各プレイヤーの合計ポイント
-    """
     if len(players) != 4 or len(totals) != 4:
-        return  # 4人麻雀以外は対象外
+        return
 
     user_ids = [int(p["user_id"]) for p in players]
 
@@ -316,7 +437,6 @@ def update_ratings_for_match(players: list, totals: list):
         conn = get_db()
         cursor = conn.cursor()
 
-        # 現在のレートを取得（無ければ1500で初期登録）
         ratings = {}
         games_map = {}
         for uid in user_ids:
@@ -336,7 +456,6 @@ def update_ratings_for_match(players: list, totals: list):
                 ratings[uid] = int(row["rating"])
                 games_map[uid] = int(row["games"])
 
-        # 4人総当たり（6ペア）でELO差分を加算
         diffs = {uid: 0.0 for uid in user_ids}
         for i in range(4):
             for j in range(i + 1, 4):
@@ -355,7 +474,6 @@ def update_ratings_for_match(players: list, totals: list):
                 diffs[ui] += ki * (si - ei)
                 diffs[uj] += kj * (sj - ej)
 
-        # 反映
         for uid in user_ids:
             new_rating = int(round(ratings[uid] + diffs[uid]))
             won = 1 if diffs[uid] > 0 else 0
@@ -378,6 +496,7 @@ def update_ratings_for_match(players: list, totals: list):
 
     except Exception as e:
         print(f"[Rating ERROR] {e}", flush=True)
+
 
 @app.route("/score-manage/save", methods=["POST"])
 def score_manage_save():
@@ -424,21 +543,21 @@ def score_manage_save():
         cursor.close()
         conn.close()
 
-        
+        # レート自動更新
         totals = [0, 0, 0, 0]
         for r in rounds:
             for i, sc in enumerate(r["scores"]):
                 totals[i] += int(sc)
         update_ratings_for_match(players, totals)
 
-
         return jsonify({"status": "success", "message": "保存しました"})
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
 # ============================================
-# 賭博モード（DB保存なし・クライアントサイドのみ）
+# 賭博モード（DB保存なし）
 # ============================================
 
 @app.route("/gamble-mode")
@@ -450,8 +569,9 @@ def gamble_mode():
         username=session.get("nickname"),
     )
 
+
 # ============================================
-# グループ機能
+# グループ機能（省略なし・既存踏襲）
 # ============================================
 
 @app.route("/groups")
@@ -631,7 +751,7 @@ def group_detail(group_id):
 
 
 # ============================================
-# マッチング機能
+# マッチング機能（既存）
 # ============================================
 
 @app.route("/matching")
@@ -837,9 +957,6 @@ def matching_requests():
 
 @app.route("/matching/requests/<int:request_id>/accept", methods=["POST"])
 def matching_accept(request_id):
-    print("[DEBUG] matching_accept called")
-    print("[DEBUG] request_id =", request_id)
-
     if "user_id" not in session:
         return redirect(url_for("login"))
 
@@ -855,7 +972,6 @@ def matching_accept(request_id):
             WHERE mr.id = %s
         """, (request_id,))
         req = cursor.fetchone()
-        print("[DEBUG] req =", req)
         if not req or req["post_owner_id"] != user_id:
             cursor.close()
             conn.close()
@@ -875,7 +991,6 @@ def matching_accept(request_id):
         cursor.close()
         conn.close()
 
-        # マッチング成立時のみTeamsへ通知
         notify_teams_matching_success(req["post_id"], req["requester_id"])
 
         flash("マッチング成立しました")
@@ -917,7 +1032,7 @@ def matching_reject(request_id):
 
 
 # ============================================
-# 点数計算機能（mahjong）
+# 点数計算機能（既存）
 # ============================================
 
 @app.route("/score", methods=["GET", "POST"])
@@ -931,8 +1046,6 @@ def score():
     pick_win_tile = False
     detected_tiles = []
     detected_tiles_str = ""
-
-
 
     if request.method == "POST":
         new_image = request.files.get("image")
@@ -951,11 +1064,9 @@ def score():
 
         image_url = "/" + saved_path
 
-        # 検出済み牌の保持
         detected_tiles = detected_tiles_str.split(",") if detected_tiles_str else []
         detected_pretty = [{"type":"keep","num":t[0],"short":t} for t in detected_tiles if t]
 
-        # 新規アップロード時のみ AI判定
         if new_image and new_image.filename:
             try:
                 with open(saved_path, "rb") as f:
@@ -995,14 +1106,12 @@ def score():
                         detected_tiles.append(short)
                         detected_pretty.append({"type":kind,"num":num,"short":short})
 
-        # 手動補完
         manual_tiles = request.form.getlist("manual_tile")
         for t in manual_tiles:
             if t:
                 detected_tiles.append(t)
                 detected_pretty.append({"type":"manual","num":t[0],"short":t})
 
-        # 14枚未満 → 補完UI
         if len(detected_tiles) < 14:
             need_more = 14 - len(detected_tiles)
             return render_template(
@@ -1016,7 +1125,6 @@ def score():
                 nickname=session.get("nickname", ""),
             )
 
-        # 上がり牌の指定がない → 上がり牌UI
         win_tile_choice = request.form.get("win_tile", "").strip()
         if not win_tile_choice:
             return render_template(
@@ -1031,19 +1139,15 @@ def score():
                 nickname=session.get("nickname", ""),
             )
 
-        # === Macni雀 v3.8: 14枚を麻雀の標準順に並べ替える ===
         def sort_mahjong_tiles(tiles):
-            """ tiles: ['1m','3p','2s','5z',...] を麻雀順に並べ替える """
             order = {"m":0, "p":1, "s":2, "z":3}
             return sorted(
                 tiles,
                 key=lambda t: (order.get(t[1], 9), int(t[0]))
             )
 
-        # 既に14枚そろっている場合に並べ替えを適用
         detected_tiles = sort_mahjong_tiles(detected_tiles)
 
-        # 上がり牌が確定済み → 計算
         tiles_man = tiles_pin = tiles_sou = tiles_honors = ""
         for tile in detected_tiles[:14]:
             num, kind = tile[0], tile[1]
@@ -1060,7 +1164,6 @@ def score():
             "honors": num if kind=="z" else "",
         })[0]
 
-        # === Macni雀 v4.2 鳴き情報を取得 ===
         from mahjong.meld import Meld
 
         melds = []
@@ -1096,7 +1199,6 @@ def score():
             elif m_type == "kan_closed":
                 melds.append(Meld(meld_type=Meld.KAN, tiles=tiles_136, opened=False))
 
-        # === 状況フラグ取得 ===
         is_riichi = request.form.get("is_riichi") == "on"
         is_ippatsu = request.form.get("is_ippatsu") == "on"
         is_chankan = request.form.get("is_chankan") == "on"
@@ -1109,107 +1211,52 @@ def score():
         player_wind_str = request.form.get("player_wind", "1z")
         round_wind_str = request.form.get("round_wind", "1z")
 
-        # === mahjong 1.4.0 の風コードに変換 ===
-        WIND_MAP = {
-            "1z": 27,  # 東
-            "2z": 28,  # 南
-            "3z": 29,  # 西
-            "4z": 30,  # 北
-        }
+        WIND_MAP = {"1z": 27, "2z": 28, "3z": 29, "4z": 30}
         player_wind = WIND_MAP.get(player_wind_str, 27)
         round_wind = WIND_MAP.get(round_wind_str, 27)
 
-        # === mahjong 計算 ===
         calculator = HandCalculator()
         tiles = TilesConverter.string_to_136_array(
             man=tiles_man, pin=tiles_pin, sou=tiles_sou, honors=tiles_honors
         )
 
-        # === ツモ和了 ===
         calc_tsumo = calculator.estimate_hand_value(
-            tiles, win_tile,
-            melds=melds,
+            tiles, win_tile, melds=melds,
             config=HandConfig(
-                is_tsumo=True,
-                is_riichi=is_riichi,
-                is_ippatsu=is_ippatsu,
-                is_chankan=is_chankan,
-                is_haitei=is_haitei,
-                is_houtei=is_houtei,
-                is_rinshan=is_rinshan,
-                is_daburu_riichi=is_double_riichi,
-                player_wind=player_wind,
-                round_wind=round_wind
+                is_tsumo=True, is_riichi=is_riichi, is_ippatsu=is_ippatsu,
+                is_chankan=is_chankan, is_haitei=is_haitei, is_houtei=is_houtei,
+                is_rinshan=is_rinshan, is_daburu_riichi=is_double_riichi,
+                player_wind=player_wind, round_wind=round_wind
             )
         )
 
-        # === ロン和了 ===
         calc_ron = calculator.estimate_hand_value(
-            tiles, win_tile,
-            melds=melds,
+            tiles, win_tile, melds=melds,
             config=HandConfig(
-                is_tsumo=False,
-                is_riichi=is_riichi,
-                is_ippatsu=is_ippatsu,
-                is_chankan=is_chankan,
-                is_haitei=is_haitei,
-                is_houtei=is_houtei,
-                is_rinshan=is_rinshan,
-                is_daburu_riichi=is_double_riichi,
-                player_wind=player_wind,
-                round_wind=round_wind
+                is_tsumo=False, is_riichi=is_riichi, is_ippatsu=is_ippatsu,
+                is_chankan=is_chankan, is_haitei=is_haitei, is_houtei=is_houtei,
+                is_rinshan=is_rinshan, is_daburu_riichi=is_double_riichi,
+                player_wind=player_wind, round_wind=round_wind
             )
         )
 
-
-        # === 役名を漢字に変換するマップ ===
         YAKU_JA = {
-            "Riichi": "立直",
-            "Daburu Riichi": "ダブル立直",
-            "Ippatsu": "一発",
-            "Tsumo": "ツモ",
-            "Menzen Tsumo": "門前清自摸和",
-            "Pinfu": "平和",
-            "Iipeiko": "一盃口",
-            "Haitei Raoyue": "海底摸月",
-            "Houtei Raoyui": "河底撈魚",
-            "Rinshan Kaihou": "嶺上開花",
-            "Chankan": "槍槓",
-            "Tanyao": "断幺九",
-            "Yakuhai (Haku)": "役牌 白",
-            "Yakuhai (Hatsu)": "役牌 發",
-            "Yakuhai (Chun)": "役牌 中",
-            "Yakuhai (Place Wind)": "場風",
-            "Yakuhai (Round Wind)": "自風",
-            "Sanshoku Doujun": "三色同順",
-            "Ittsu": "一気通貫",
-            "Chanta": "全帯幺",
-            "Honroutou": "混老頭",
-            "Toitoi": "対々和",
-            "Sanshoku Doukou": "三色同刻",
-            "Sanankou": "三暗刻",
-            "Sankantsu": "三槓子",
-            "Shousangen": "小三元",
-            "Honitsu": "混一色",
-            "Junchan": "純全帯幺",
-            "Ryanpeikou": "二盃口",
-            "Chinitsu": "清一色",
-            "Kokushi Musou": "国士無双",
-            "Chiitoitsu": "七対子",
-            "Suuankou": "四暗刻",
-            "Suuankou Tanki": "四暗刻単騎",
-            "Daisangen": "大三元",
-            "Shousuushii": "小四喜",
-            "Daisuushii": "大四喜",
-            "Tsuuiisou": "字一色",
-            "Ryuuiisou": "緑一色",
-            "Chinroutou": "清老頭",
-            "Suukantsu": "四槓子",
-            "Chuuren Pouto": "九蓮宝燈",
-            "Junsei Chuuren Pouto": "純正九蓮宝燈",
-            "Tenhou": "天和",
-            "Chiihou": "地和",
-            "Renhou": "人和",
+            "Riichi": "立直","Daburu Riichi": "ダブル立直","Ippatsu": "一発",
+            "Tsumo": "ツモ","Menzen Tsumo": "門前清自摸和","Pinfu": "平和",
+            "Iipeiko": "一盃口","Haitei Raoyue": "海底摸月","Houtei Raoyui": "河底撈魚",
+            "Rinshan Kaihou": "嶺上開花","Chankan": "槍槓","Tanyao": "断幺九",
+            "Yakuhai (Haku)": "役牌 白","Yakuhai (Hatsu)": "役牌 發","Yakuhai (Chun)": "役牌 中",
+            "Yakuhai (Place Wind)": "場風","Yakuhai (Round Wind)": "自風",
+            "Sanshoku Doujun": "三色同順","Ittsu": "一気通貫","Chanta": "全帯幺",
+            "Honroutou": "混老頭","Toitoi": "対々和","Sanshoku Doukou": "三色同刻",
+            "Sanankou": "三暗刻","Sankantsu": "三槓子","Shousangen": "小三元",
+            "Honitsu": "混一色","Junchan": "純全帯幺","Ryanpeikou": "二盃口",
+            "Chinitsu": "清一色","Kokushi Musou": "国士無双","Chiitoitsu": "七対子",
+            "Suuankou": "四暗刻","Suuankou Tanki": "四暗刻単騎","Daisangen": "大三元",
+            "Shousuushii": "小四喜","Daisuushii": "大四喜","Tsuuiisou": "字一色",
+            "Ryuuiisou": "緑一色","Chinroutou": "清老頭","Suukantsu": "四槓子",
+            "Chuuren Pouto": "九蓮宝燈","Junsei Chuuren Pouto": "純正九蓮宝燈",
+            "Tenhou": "天和","Chiihou": "地和","Renhou": "人和",
         }
 
         def yaku_to_japanese(yaku_list):
@@ -1223,43 +1270,32 @@ def score():
                 yaku_list.append(f"ドラ{dora_count}")
             return yaku_list
 
-        # Macni雀 v4.1 の業務SaaS級アプリ用に変換
         yaku_tsumo = build_yaku_with_dora(calc_tsumo, dora_count)
         yaku_ron = build_yaku_with_dora(calc_ron, dora_count)
 
-        # === ドラを翻数に加算 ===
         if calc_tsumo.han is not None:
             calc_tsumo.han += dora_count
         if calc_ron.han is not None:
             calc_ron.han += dora_count
 
-        # === 子のツモあがり ===
         if calc_tsumo.cost:
-            main = calc_tsumo.cost["main"]              # 親が払う点数
-            additional = calc_tsumo.cost["additional"]  # 子が払う点数
-
-            # 子のツモあがり
+            main = calc_tsumo.cost["main"]
+            additional = calc_tsumo.cost["additional"]
             child_main = main
             child_add = additional
             child_total = main + additional * 2
-
-            # 親のツモあがり
-            dealer_each = main      # ← ✅ 子が払う点数 = 子のツモあがりで親が払う点数
-            dealer_total = main * 3 # ← ✅ 子3人がそれぞれ main を払う
+            dealer_each = main
+            dealer_total = main * 3
         else:
             child_main = child_add = child_total = "計算不可"
             dealer_each = dealer_total = "計算不可"
 
-        # ===========================================
-        # ロン点数テーブル（1〜4翻のみ）
-        # ===========================================
         RON_CHILD = {
             1: {30:1000, 40:1300, 50:1600, 60:2000, 70:2300},
             2: {20:1300, 25:1600, 30:2000, 40:2600, 50:3200, 60:3900, 70:4500},
             3: {20:2600, 25:3200, 30:3900, 40:5200, 50:6400, 60:7700, 70:"満貫"},
             4: {20:5200, 25:6400, 30:7700, 40:"満貫", 50:"満貫", 60:"満貫", 70:"満貫"},
         }
-
         RON_DEALER = {
             1: {30:1500, 40:2000, 50:2400, 60:2900, 70:3400},
             2: {20:2000, 25:2400, 30:2900, 40:3900, 50:4800, 60:5800, 70:6800},
@@ -1267,19 +1303,13 @@ def score():
             4: {20:7700, 25:9600, 30:11600, 40:"満貫", 50:"満貫", 60:"満貫", 70:"満貫"},
         }
 
-        # ===========================================
-        # ロン点数を導出
-        # ===========================================
         if calc_ron.cost:
             han = calc_ron.han
             fu = calc_ron.fu
-
-            # 5翻以上 → 既存ロジック（mahjongのmain）を使用
             if han and han >= 5:
                 ron_child = calc_ron.cost["main"]
                 ron_dealer = ron_child * 6 // 4
             else:
-                # 1〜4翻 → 翻×符テーブル参照
                 ron_child = RON_CHILD.get(han, {}).get(fu, "計算不可")
                 ron_dealer = RON_DEALER.get(han, {}).get(fu, "計算不可")
         else:
@@ -1287,25 +1317,14 @@ def score():
             ron_dealer = "計算不可"
 
         result = {
-            "yaku_tsumo": yaku_tsumo,
-            "han_tsumo": calc_tsumo.han or "なし",
-            "fu_tsumo": calc_tsumo.fu or "なし",
-            "yaku_ron": yaku_ron,
-            "han_ron": calc_ron.han or "なし",
-            "fu_ron": calc_ron.fu or "なし",
-            "child_main": child_main,
-            "child_add": child_add,
-            "child_total": child_total,
-            "dealer_each": dealer_each,
-            "dealer_total": dealer_total,
-            "ron_child": ron_child,
-            "ron_dealer": ron_dealer,
-            "tiles_used": detected_tiles[:14],
-            "ai_tiles": ai_result,
-            "win_tile": win_tile_choice,
+            "yaku_tsumo": yaku_tsumo, "han_tsumo": calc_tsumo.han or "なし", "fu_tsumo": calc_tsumo.fu or "なし",
+            "yaku_ron": yaku_ron, "han_ron": calc_ron.han or "なし", "fu_ron": calc_ron.fu or "なし",
+            "child_main": child_main, "child_add": child_add, "child_total": child_total,
+            "dealer_each": dealer_each, "dealer_total": dealer_total,
+            "ron_child": ron_child, "ron_dealer": ron_dealer,
+            "tiles_used": detected_tiles[:14], "ai_tiles": ai_result, "win_tile": win_tile_choice,
         }
 
-    # ★ GET時にもここで必ず render_template を返す（500 完全対策）
     return render_template(
         "score.html",
         result=result,
@@ -1317,8 +1336,10 @@ def score():
         nickname=session.get("nickname", ""),
         pick_win_tile=pick_win_tile,
     )
+
+
 # ============================================
-# AIテスト
+# その他既存機能
 # ============================================
 
 @app.route("/test-ai")
@@ -1333,15 +1354,10 @@ def test_ai():
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             verify=False,
         )
-
         return jsonify(response.json())
     except Exception as e:
         return str(e)
 
-
-# ============================================
-# DB接続テスト
-# ============================================
 
 @app.route("/db-test")
 def db_test():
@@ -1352,11 +1368,7 @@ def db_test():
         row = cursor.fetchone()
         cursor.close()
         conn.close()
-        return jsonify({
-            "status": "success",
-            "database": row["db"],
-            "time": str(row["nowtime"]),
-        })
+        return jsonify({"status": "success","database": row["db"],"time": str(row["nowtime"])})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1370,7 +1382,6 @@ def profile():
     conn = get_db()
     cursor = conn.cursor()
 
-    # POST: プロフィール更新
     if request.method == "POST":
         new_nickname = request.form.get("nickname", "").strip()
         new_bio = request.form.get("bio", "").strip()
@@ -1387,20 +1398,17 @@ def profile():
         )
         conn.commit()
         session["nickname"] = new_nickname
-
         flash("プロフィールを更新しました")
         cursor.close()
         conn.close()
         return redirect(url_for("profile"))
 
-    # GET: プロフィール取得
     cursor.execute(
         "SELECT id, employee_number, nickname, bio, created_at FROM users WHERE id=%s",
         (user_id,)
     )
     user = cursor.fetchone()
 
-    # ★ 社内レート情報を取得 ★
     cursor.execute(
         "SELECT rating, games, win, lose FROM user_ratings WHERE user_id=%s",
         (user_id,)
@@ -1408,13 +1416,8 @@ def profile():
     rating_row = cursor.fetchone()
 
     rating_info = {
-        "rating": 1500,
-        "games": 0,
-        "win": 0,
-        "lose": 0,
-        "win_rate": 0,
-        "rank": None,
-        "total_users": 0,
+        "rating": 1500, "games": 0, "win": 0, "lose": 0,
+        "win_rate": 0, "rank": None, "total_users": 0,
     }
     if rating_row:
         rating_info["rating"] = int(rating_row["rating"])
@@ -1424,7 +1427,6 @@ def profile():
         if rating_info["games"] > 0:
             rating_info["win_rate"] = round(rating_info["win"] / rating_info["games"] * 100)
 
-    # 順位算出（試合経験者のみ）
     cursor.execute("""
         SELECT user_id FROM user_ratings
         WHERE games > 0
@@ -1446,6 +1448,7 @@ def profile():
         nickname=session.get("nickname"),
         rating_info=rating_info,
     )
+
 
 # ============================================
 # 起動

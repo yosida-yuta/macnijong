@@ -1,56 +1,44 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Macni雀 - アカウント新規作成</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アカウント登録 - Macni雀</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-  <div class="container">
-    <h1>Macni雀</h1>
-    <h2>アカウント新規作成</h2>
+<header class="header">
+  <a href="{{ url_for('login') }}" class="back-link">← ログイン</a>
+  <h1 class="app-title">Macni雀</h1>
+</header>
 
+<main class="main-container">
+  <h2 class="page-title">アカウント登録</h2>
+
+  {% if sent %}
+    <div style="padding:16px; background:#e8f5e9; border-radius:8px; margin-bottom:16px;">
+      📧 認証メールを送信しました。<br>
+      メール内のリンクから登録を完了してください（15分以内）。
+    </div>
+  {% else %}
     {% if error %}
-      <p class="error">{{ error }}</p>
+      <div style="padding:12px; background:#ffebee; color:#c62828; border-radius:6px; margin-bottom:12px;">
+        {{ error }}
+      </div>
     {% endif %}
 
-    <form method="POST" id="registerForm">
-      <label>ニックネーム</label>
-      <input type="text" name="nickname" required maxlength="20">
-
-      <label>社員番号</label>
-      <input type="text" name="employee_number" required>
-
-      <label>パスワード</label>
-      <input type="password" name="password" id="pw1" required minlength="6">
-
-      <label>パスワード再入力</label>
-      <input type="password" id="pw2" required minlength="6">
-
-      <p id="pw-error" class="error" style="display:none;">パスワードが一致しません</p>
-
-      <button type="submit">登録</button>
+    <form method="POST" class="date-section" style="display:flex; flex-direction:column; gap:12px;">
+      <label>社員メールアドレス</label>
+      <input type="email" name="email" required
+             placeholder="you@macnica.co.jp / you@pn.macnica.co.jp"
+             style="padding:10px; font-size:16px;">
+      <button type="submit" class="btn-primary" style="padding:12px;">認証メールを送信</button>
     </form>
 
-    <a href="/login" class="link">ログインページに戻る</a>
-  </div>
-
-  <script>
-    document.getElementById('registerForm').addEventListener('submit', function(e) {
-      var pw1 = document.getElementById('pw1').value;
-      var pw2 = document.getElementById('pw2').value;
-
-      if (pw1 !== pw2) {
-        e.preventDefault();
-        document.getElementById('pw-error').style.display = 'block';
-        return;
-      }
-
-      if (!confirm('この内容で登録しますか？')) {
-        e.preventDefault();
-      }
-    });
-  </script>
+    <p style="font-size:12px; color:#666; margin-top:12px;">
+      ※ 認証メール内のリンクは 15分で無効になります。
+    </p>
+  {% endif %}
+</main>
 </body>
 </html>
