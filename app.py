@@ -1648,7 +1648,7 @@ def profile():
 
 @app.route("/admin/audit")
 def admin_audit():
-    if session.get("user_id") != 1:  # 一旦IDで管理者判定
+    if session.get("user_id") != 141291:  # 一旦IDで管理者判定
         return "権限がありません", 403
 
     conn = get_db()

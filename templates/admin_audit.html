@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>監査ログ - Macni雀</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        .audit-wrap {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 16px;
+        }
+
+        .audit-title {
+            color: #1B3F80;
+            border-left: 4px solid #1B3F80;
+            padding-left: 12px;
+            margin-bottom: 20px;
+        }
+
+        .audit-filter {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .filter-btn {
+            border: 1px solid #ccc;
+            background: #fff;
+            color: #333;
+            padding: 6px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .filter-btn.active {
+            background: #1B3F80;
+            color: #fff;
+            border-color: #1B3F80;
+        }
+
+        .audit-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            font-size: 13px;
+        }
+
+        .audit-table th,
+        .audit-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+            vertical-align: top;
+            word-break: break-all;
+        }
+
+        .audit-table thead th {
+            background: #1B3F80;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #fff;
+            white-space: nowrap;
+        }
+
+        .badge.ok    { background: #2E7D32; }
+        .badge.fail  { background: #C03A22; }
+        .badge.warn  { background: #d9a300; color: #1a1a1a; }
+        .badge.other { background: #4E6AA4; }
+
+        .action-cell {
+            font-weight: bold;
+            color: #1B3F80;
+        }
+
+        .action-fail {
+            color: #C03A22 !important;
+        }
+
+        .ua-cell {
+            font-size: 11px;
+            color: #666;
+            max-width: 300px;
+        }
+
+        .empty-msg {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        @media (max-width: 700px) {
+            .audit-table th,
+            .audit-table td {
+                padding: 6px;
+                font-size: 12px;
+            }
+            .ua-cell { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <a href="{{ url_for('menu') }}" class="back-link">← メニュー</a>
+    <h1 class="app-title">🀄 Macni雀 管理者</h1>
+    <span class="nickname">監査ログ</span>
+</div>
+
+<div class="audit-wrap">
+    <h2 class="audit-title">📝 監査ログ（最新200件）</h2>
+
+    <div class="audit-filter" id="filter-bar">
+        <button class="filter-btn active" data-filter="all">全て</button>
+        <button class="filter-btn" data-filter="login_success">ログイン成功</button>
+        <button class="filter-btn" data-filter="login_fail">ログイン失敗</button>
+        <button class="filter-btn" data-filter="login_rate_limited">ロック</button>
+        <button class="filter-btn" data-filter="logout">ログアウト</button>
+        <button class="filter-btn" data-filter="register_start">登録メール送信</button>
+        <button class="filter-btn" data-filter="register_complete">登録完了</button>
+        <button class="filter-btn" data-filter="password_reset">パスワードリセット</button>
+    </div>
+
+    {% if logs and logs|length > 0 %}
+    <div class="table-container">
+        <table class="audit-table" id="audit-table">
+            <thead>
+                <tr>
+                    <th style="width:60px;">ID</th>
+                    <th style="width:140px;">日時 (UTC)</th>
+                    <th style="width:180px;">アクション</th>
+                    <th style="width:80px;">結果</th>
+                    <th style="width:180px;">Email</th>
+                    <th style="width:130px;">Nickname</th>
+                    <th style="width:130px;">IP</th>
+                    <th class="ua-cell">User-Agent</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                    <tr class="audit-row" data-action="{{ log.action }}">
+                        <td>{{ log.id }}</td>
+                        <td>
+                            {{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '' }}
+                        </td>
+                        <td class="action-cell {% if 'fail' in log.action or 'expired' in log.action or 'invalid' in log.action or 'used' in log.action %}action-fail{% endif %}">
+                            {{ log.action }}
+                        </td>
+                        <td>
+                            {% if log.result == 'success' or log.result == 'sent' %}
+                                <span class="badge ok">{{ log.result }}</span>
+                            {% elif log.result == 'fail' %}
+                                <span class="badge fail">{{ log.result }}</span>
+                            {% elif log.result in ('reject_domain','duplicate','unknown_email','error') %}
+                                <span class="badge warn">{{ log.result }}</span>
+                            {% else %}
+                                <span class="badge other">{{ log.result }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ log.email or '' }}</td>
+                        <td>{{ log.nickname or '' }}</td>
+                        <td>{{ log.ip_address or '' }}</td>
+                        <td class="ua-cell">{{ log.user_agent or '' }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <div class="empty-msg">ログはまだありません。</div>
+    {% endif %}
+</div>
+
+<script>
+    // フィルターボタン
+    document.querySelectorAll('.filter-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.filter-btn').forEach(function (b) {
+                b.classList.remove('active');
+            });
+            btn.classList.add('active');
+
+            const filter = btn.dataset.filter;
+
+            document.querySelectorAll('.audit-row').forEach(function (row) {
+                const action = row.dataset.action || '';
+
+                if (filter === 'all') {
+                    row.style.display = '';
+                } else if (filter === 'password_reset') {
+                    // password_reset_request / _confirm / _invalid / _expired など全て表示
+                    row.style.display = action.startsWith('password_reset') ? '' : 'none';
+                } else if (filter === 'register_start') {
+                    row.style.display = (action === 'register_start') ? '' : 'none';
+                } else if (filter === 'register_complete') {
+                    row.style.display = (action === 'register_complete') ? '' : 'none';
+                } else {
+                    row.style.display = (action === filter) ? '' : 'none';
+                }
+            });
+        });
+    });
+</script>
+
+</body>
+</html>
