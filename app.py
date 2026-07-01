@@ -41,7 +41,7 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
 )
-
+app.config["WTF_CSRF_SSL_STRICT"] = False
 # CSRF
 csrf = CSRFProtect(app)
 
