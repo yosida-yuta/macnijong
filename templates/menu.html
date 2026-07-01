@@ -24,6 +24,23 @@
             <a href="{{ url_for('groups') }}" class="menu-btn">👥 グループ</a>
             <a href="{{ url_for('matching') }}" class="menu-btn">🤝 マッチング</a>
         </div>
+        {% if is_admin %}
+        <div style="margin-top: 20px; text-align: center;">
+            <a href="/admin/audit"
+            style="
+                    display:inline-block;
+                    padding:14px 22px;
+                    background:#C03A22;
+                    color:#fff;
+                    border-radius:10px;
+                    font-weight:bold;
+                    text-decoration:none;
+                    box-shadow:0 2px 6px rgba(0,0,0,0.15);
+                ">
+                🛠 管理者ページ（監査ログ）
+            </a>
+        </div>
+        {% endif %}
     </div>
 </body>
 </html>

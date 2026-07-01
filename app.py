@@ -86,6 +86,46 @@ def get_db():
         cursorclass=pymysql.cursors.DictCursor,
     )
 
+def is_admin_user() -> bool:
+    """
+    現在のログインユーザーが管理者かどうかを判定
+    - .env の ADMIN_EMPLOYEE_NUMBERS に登録された社員番号を管理者扱いにする
+    """
+    if "user_id" not in session:
+        return False
+
+    admin_env = os.getenv("ADMIN_EMPLOYEE_NUMBERS", "")
+    admin_list = [x.strip() for x in admin_env.split(",") if x.strip()]
+
+    if not admin_list:
+        return False
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT employee_number FROM users WHERE id=%s",
+            (session["user_id"],)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        
+        print(f"[is_admin] session user_id={session.get('user_id')}", flush=True)
+        print(f"[is_admin] db employee_number={row['employee_number'] if row else None}", flush=True)
+        print(f"[is_admin] .env admin_list={admin_list}", flush=True)
+
+
+        if not row:
+            return False
+
+        return str(row["employee_number"]) in admin_list
+
+    except Exception as e:
+        print(f"[is_admin_user ERROR] {e}", flush=True)
+        return False
+
 def log_audit(action: str, result: str = "success",
               user_id=None, email=None):
     """監査ログ用ユーティリティ"""
@@ -551,7 +591,11 @@ def register_verify():
 def menu():
     if "user_id" not in session:
         return redirect(url_for("login"))
-    return render_template("menu.html", nickname=session.get("nickname"))
+    return render_template(
+        "menu.html",
+        nickname=session.get("nickname"),
+        is_admin=is_admin_user()
+    )
 
 
 @app.route("/logout")
@@ -1648,7 +1692,7 @@ def profile():
 
 @app.route("/admin/audit")
 def admin_audit():
-    if session.get("user_id") != 141291:  # 一旦IDで管理者判定
+    if not is_admin_user():
         return "権限がありません", 403
 
     conn = get_db()
