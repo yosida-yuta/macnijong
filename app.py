@@ -1,3 +1,10 @@
+from flask_wtf import CSRFProtect
+
+csrf = CSRFProtect(app)
+
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 import os
 import base64
 import hashlib
@@ -38,6 +45,30 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
 )
 
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["300 per hour"]  # アプリ全体のデフォルト
+)
+limiter.init_app(app)
+
+@app.after_request
+def add_security_headers(resp):
+    resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    # 既存のUIを壊さないよう緩めのCSP（あとで厳格化可能）
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "connect-src 'self' https:; "
+        "font-src 'self' data:; "
+        "frame-ancestors 'none'"
+    )
+    return resp
 
 # ============================================
 # DB & ユーティリティ
@@ -53,6 +84,28 @@ def get_db():
         cursorclass=pymysql.cursors.DictCursor,
     )
 
+def log_audit(action: str, result: str = "success",
+              user_id=None, email=None):
+    """監査ログ用ユーティリティ"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO audit_logs (user_id, email, action, result, ip_address, user_agent)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            user_id,
+            email,
+            action,
+            result,
+            request.headers.get("X-Forwarded-For", request.remote_addr),
+            request.headers.get("User-Agent", ""),
+        ))
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"[audit_log ERROR] {e}", flush=True)
 
 def hash_password(password):
     """旧 SHA-256 ハッシュ（既存互換用）"""
@@ -223,6 +276,7 @@ def index():
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute; 20 per hour", methods=["POST"])
 def login():
     error = None
     if request.method == "POST":
@@ -242,11 +296,143 @@ def login():
         if user and verify_password_bcrypt(password, user["password_hash"]):
             session["user_id"] = user["id"]
             session["nickname"] = user["nickname"]
+            log_audit("login_success", user_id=user["id"], email=user.get("email"))
             return redirect(url_for("menu"))
         else:
+            log_audit("login_fail", result="fail", email=emp_num)
             error = "社員番号またはパスワードが正しくありません"
 
     return render_template("login.html", error=error)
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    log_audit("login_rate_limited", result="fail")
+    return render_template(
+        "login.html",
+        error="ログイン試行回数が多すぎます。しばらく（15分程度）経ってから再度お試しください。"
+    ), 429
+
+
+@app.route("/password/reset", methods=["GET", "POST"])
+@limiter.limit("5 per hour", methods=["POST"])
+def password_reset():
+    sent = False
+    error = None
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        if not is_allowed_email(email):
+            error = "社員メールアドレス（@macnica.co.jp / @pn.macnica.co.jp）を入力してください"
+        else:
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM users WHERE email=%s", (email,))
+                user = cursor.fetchone()
+
+                if user:
+                    token = generate_token()
+                    expires_at = datetime.utcnow() + timedelta(minutes=30)
+                    cursor.execute(
+                        "INSERT INTO password_resets (user_id, token, expires_at) VALUES (%s, %s, %s)",
+                        (user["id"], token, expires_at)
+                    )
+                    conn.commit()
+
+                    base_url = os.getenv("APP_BASE_URL", "http://localhost:5000")
+                    link = f"{base_url}/password/reset/confirm?token={token}"
+                    subject = "【Macni雀】パスワード再設定"
+                    body = (
+                        "Macni雀 パスワード再設定リクエストを受け付けました。\n\n"
+                        "下記のリンクから30分以内に新しいパスワードを設定してください：\n\n"
+                        f"{link}\n\n"
+                        "このメールに心当たりがない場合は破棄してください。\n"
+                    )
+
+                    client = boto3.client(
+                        "ses",
+                        region_name=os.getenv("AWS_REGION", "ap-northeast-1"),
+                        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                    )
+                    client.send_email(
+                        Source=os.getenv("SES_SENDER_EMAIL"),
+                        Destination={"ToAddresses": [email]},
+                        Message={
+                            "Subject": {"Data": subject, "Charset": "UTF-8"},
+                            "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
+                        },
+                    )
+                    log_audit("password_reset_request", result="sent", email=email)
+                else:
+                    # メール流出を防ぐため、存在しなくても成功風の応答
+                    log_audit("password_reset_request", result="unknown_email", email=email)
+
+                cursor.close()
+                conn.close()
+                sent = True
+
+            except Exception as e:
+                error = f"送信エラー: {str(e)}"
+                log_audit("password_reset_request", result="error", email=email)
+
+    return render_template("password_reset.html", error=error, sent=sent)
+
+
+@app.route("/password/reset/confirm", methods=["GET", "POST"])
+@limiter.limit("10 per hour", methods=["POST"])
+def password_reset_confirm():
+    token = request.args.get("token") or request.form.get("token")
+    if not token:
+        return "トークンがありません", 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM password_resets WHERE token=%s", (token,))
+    row = cursor.fetchone()
+
+    if not row:
+        cursor.close(); conn.close()
+        log_audit("password_reset_invalid", result="fail")
+        return "無効なトークンです", 400
+    if row["used"]:
+        cursor.close(); conn.close()
+        log_audit("password_reset_used", result="fail")
+        return "このトークンは既に使用済みです", 400
+    if row["expires_at"] < datetime.utcnow():
+        cursor.close(); conn.close()
+        log_audit("password_reset_expired", result="fail")
+        return "トークンの有効期限が切れています", 400
+
+    error = None
+    if request.method == "POST":
+        pw1 = request.form.get("password", "")
+        pw2 = request.form.get("password2", "")
+
+        if len(pw1) < 8:
+            error = "パスワードは8文字以上にしてください"
+        elif pw1 != pw2:
+            error = "パスワードが一致しません"
+        else:
+            new_hash = hash_password_bcrypt(pw1)
+            try:
+                cursor.execute(
+                    "UPDATE users SET password_hash=%s WHERE id=%s",
+                    (new_hash, row["user_id"])
+                )
+                cursor.execute(
+                    "UPDATE password_resets SET used=1 WHERE token=%s",
+                    (token,)
+                )
+                conn.commit()
+                log_audit("password_reset_complete", user_id=row["user_id"])
+                cursor.close(); conn.close()
+                flash("パスワードを更新しました。新しいパスワードでログインしてください。")
+                return redirect(url_for("login"))
+            except Exception as e:
+                error = f"更新エラー: {str(e)}"
+
+    cursor.close(); conn.close()
+    return render_template("password_reset_confirm.html", token=token, error=error)
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -259,6 +445,7 @@ def register():
 
         if not is_allowed_email(email):
             error = "社員メールアドレス（@macnica.co.jp / @pn.macnica.co.jp）を入力してください"
+            log_audit("register_start", result="reject_domain", email=email)
         else:
             try:
                 token = generate_token()
@@ -275,16 +462,17 @@ def register():
                 conn.close()
 
                 send_verification_email(email, token)
+                log_audit("register_start", result="sent", email=email)
                 sent = True
             except Exception as e:
                 error = f"送信エラー: {str(e)}"
+                log_audit("register_start", result="error", email=email)
 
     return render_template("register.html", error=error, sent=sent)
 
-
 @app.route("/register/verify", methods=["GET", "POST"])
+
 def register_verify():
-    """メール内のリンクから来るページ。本登録処理。"""
     token = request.args.get("token") or request.form.get("token")
     if not token:
         return "トークンがありません", 400
@@ -299,14 +487,17 @@ def register_verify():
 
     if not row:
         cursor.close(); conn.close()
+        log_audit("verify_invalid", result="fail")
         return "無効なトークンです", 400
 
     if row["used"]:
         cursor.close(); conn.close()
+        log_audit("verify_used", result="fail", email=row["email"])
         return "このトークンは既に使用済みです", 400
 
     if row["expires_at"] < datetime.utcnow():
         cursor.close(); conn.close()
+        log_audit("verify_expired", result="fail", email=row["email"])
         return "トークンの有効期限が切れています", 400
 
     if request.method == "POST":
@@ -338,11 +529,13 @@ def register_verify():
                 (token,)
             )
             conn.commit()
+            log_audit("register_complete", email=row["email"])
             cursor.close(); conn.close()
             flash("登録が完了しました。ログインしてください。")
             return redirect(url_for("login"))
         except pymysql.err.IntegrityError:
             cursor.close(); conn.close()
+            log_audit("register_complete", result="duplicate", email=row["email"])
             return render_template("register_complete.html",
                                    token=token, email=row["email"],
                                    error="社員番号またはメールアドレスは既に使用されています")
@@ -361,6 +554,7 @@ def menu():
 
 @app.route("/logout")
 def logout():
+    log_audit("logout", user_id=session.get("user_id"))
     session.clear()
     return redirect(url_for("login"))
 
@@ -1449,6 +1643,24 @@ def profile():
         rating_info=rating_info,
     )
 
+
+@app.route("/admin/audit")
+def admin_audit():
+    if session.get("user_id") != 1:  # 一旦IDで管理者判定
+        return "権限がありません", 403
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT a.*, u.nickname
+        FROM audit_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        ORDER BY a.created_at DESC
+        LIMIT 200
+    """)
+    logs = cursor.fetchall()
+    cursor.close(); conn.close()
+    return render_template("admin_audit.html", logs=logs)
 
 # ============================================
 # 起動

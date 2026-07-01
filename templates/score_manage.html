@@ -9,6 +9,7 @@
       /* 賭博モード遷移用 */
       .page-title { cursor: pointer; user-select: none; -webkit-user-select: none; }
     </style>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
     <header class="header">
@@ -235,6 +236,7 @@
 
             try {
                 const groupId = document.getElementById('group-select').value;
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
                 const response = await fetch('/score-manage/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

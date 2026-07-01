@@ -181,7 +181,7 @@
 
     <div class="card-box">
       <form method="POST" action="{{ url_for('score') }}" enctype="multipart/form-data">
-
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <p><b>📤 画像のアップロード</b></p>
         <input type="file" name="image">
 

@@ -25,6 +25,7 @@
         {% endwith %}
 
         <form method="POST" action="{{ url_for('groups_new') }}" id="group-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-section">
                 <label class="form-label">グループ名</label>
                 <input type="text" name="group_name" class="form-input" placeholder="例：金曜麻雀部" required maxlength="50">

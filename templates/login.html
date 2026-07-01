@@ -22,6 +22,7 @@
     {% endif %}
 
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>社員番号</label>
       <input type="text" name="employee_number" value="{{ request.form.get('employee_number', '') }}" required>
 
@@ -32,6 +33,7 @@
     </form>
 
     <a href="/register" class="link">アカウント新規作成はこちら</a>
+    <a href="/password/reset" class="link">パスワードを忘れた場合はこちら</a>
   </div>
 </body>
 </html>

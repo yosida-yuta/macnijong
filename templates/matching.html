@@ -65,10 +65,12 @@
                             <div class="post-actions">
                                 {% if p.user_id == user_id %}
                                     <form method="POST" action="{{ url_for('matching_delete', post_id=p.id) }}" onsubmit="return confirm('この投稿を削除しますか？');" class="inline-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn-danger btn-small">削除</button>
                                     </form>
                                 {% elif p.status == 'open' %}
                                     <form method="POST" action="{{ url_for('matching_request', post_id=p.id) }}" onsubmit="return confirm('この投稿に申請しますか？');" class="inline-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn-primary btn-small">🤝 マッチングする</button>
                                     </form>
                                 {% else %}
@@ -89,6 +91,7 @@
         <div id="tab-recruit" class="tab-content">
             <h3 class="section-title">🟢 募集する</h3>
             <form method="POST" action="{{ url_for('matching_post') }}" class="post-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="post_type" value="recruit">
                 
                 <div class="form-section">

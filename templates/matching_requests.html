@@ -45,9 +45,11 @@
                         </div>
                         <div class="request-actions">
                             <form method="POST" action="{{ url_for('matching_accept', request_id=r.id) }}" onsubmit="return confirm('この申請を承認しますか？');" class="inline-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn-primary">✅ 承認</button>
                             </form>
                             <form method="POST" action="{{ url_for('matching_reject', request_id=r.id) }}" onsubmit="return confirm('この申請を拒否しますか？');" class="inline-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn-danger">❌ 拒否</button>
                             </form>
                         </div>

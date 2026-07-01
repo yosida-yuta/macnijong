@@ -26,7 +26,7 @@
   {% endif %}
 
   <form method="POST" action="{{ url_for('register_verify') }}" style="display:flex; flex-direction:column; gap:12px;">
-    <input type="hidden" name="token" value="{{ token }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <label>ニックネーム</label>
     <input type="text" name="nickname" required style="padding:10px; font-size:16px;">

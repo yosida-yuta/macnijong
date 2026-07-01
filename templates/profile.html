@@ -126,7 +126,7 @@
             </div>
 
             <form method="POST" action="/profile">
-
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="input-row">
                     <label>ニックネーム</label>
                     <input type="text" name="nickname" value="{{ user.nickname }}" required>
