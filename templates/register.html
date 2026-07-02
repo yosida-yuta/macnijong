@@ -16,7 +16,7 @@
             <p class="error">{{ error }}</p>
         {% endif %}
 
-        {{ url_for('register') }}">
+        <form method="POST" action="{{ url_for('register') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <label>社員メールアドレス</label>
