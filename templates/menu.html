@@ -8,21 +8,11 @@
     <h2>🀄 Macni雀 メニュー</h2>
 
     <div class="menu-grid">
-        {{ url_for('score') }}
-            🀄 点数計算
-        </a>
-        {{ url_for('score_manage') }}
-            📊 点数管理
-        </a>
-        {{ url_for('groups') }}
-            👥 グループ
-        </a>
-        {{ url_for('matching') }}
-            🤝 マッチング
-        </a>
-        {{ url_for('leaderboard') }}
-            🏆 社内レート
-        </a>
+        <a href="{{ url_for('score') }}" class="menu-btn">🀄 点数計算</a>
+            <a href="{{ url_for('score_manage') }}" class="menu-btn">📊 点数管理</a>
+            <a href="{{ url_for('groups') }}" class="menu-btn">👥 グループ</a>
+            <a href="{{ url_for('matching') }}" class="menu-btn">🤝 マッチング</a>
+            <a href="{{ url_for('leaderboard') }}" class="menu-btn">🏆 社内レート</a>
         /profile
             👤 プロフィール
         </a>
