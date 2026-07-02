@@ -13,14 +13,12 @@
             <a href="{{ url_for('groups') }}" class="menu-btn">👥 グループ</a>
             <a href="{{ url_for('matching') }}" class="menu-btn">🤝 マッチング</a>
             <a href="{{ url_for('leaderboard') }}" class="menu-btn">🏆 社内レート</a>
-        /profile
-            👤 プロフィール
         </a>
     </div>
 
     {% if is_admin %}
     <div style="text-align:center; margin-top:24px;">
-        /admin/audit style="
+        <a href="/admin/audit" style="
             display:inline-block;
             padding:14px 24px;
             background: linear-gradient(180deg, #a83232, #7a1e1e);
@@ -37,7 +35,7 @@
     {% endif %}
 
     <div style="text-align:center; margin-top:22px;">
-        /logout" style="
+        <a href="/logout" style="
             font-size:12px;
             color: var(--text-mute);
             border:1px solid rgba(212,175,55,0.2);
