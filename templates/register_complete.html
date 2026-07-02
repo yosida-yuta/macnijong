@@ -1,44 +1,35 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>アカウント登録 - Macni雀</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-<header class="header">
-  <a href="{{ url_for('login') }}" class="back-link">← ログイン</a>
-  <h1 class="app-title">Macni雀</h1>
-</header>
+{% extends "base.html" %}
+{% block title %}本登録 - Macni雀{% endblock %}
 
-<main class="main-container">
-  <h2 class="page-title">アカウント登録</h2>
+{% block content %}
+<div class="container">
+    <h1>アカウント登録</h1>
+    <h2>プロフィールを設定してください</h2>
 
-  <p style="margin-bottom:14px;">
-    メールアドレス：<strong>{{ email }}</strong>
-  </p>
+    <p style="text-align:center; margin-bottom:14px; color: var(--text-dim);">
+        📧 <strong>{{ email }}</strong>
+    </p>
 
-  {% if error %}
-    <div style="padding:12px; background:#ffebee; color:#c62828; border-radius:6px; margin-bottom:12px;">
-      {{ error }}
-    </div>
-  {% endif %}
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% endif %}
 
-  <form method="POST" action="{{ url_for('register_verify') }}" style="display:flex; flex-direction:column; gap:12px;">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <form method="POST" action="{{ url_for('register_verify') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="token" value="{{ token }}">
 
-    <label>ニックネーム</label>
-    <input type="text" name="nickname" required style="padding:10px; font-size:16px;">
+        <label>ニックネーム</label>
+        <input type="text" name="nickname" required>
 
-    <label>社員番号</label>
-    <input type="text" name="employee_number" required style="padding:10px; font-size:16px;">
+        <label>社員番号</label>
+        <input type="text" name="employee_number" required>
 
-    <label>パスワード（8文字以上）</label>
-    <input type="password" name="password" required minlength="8" style="padding:10px; font-size:16px;">
+        <label>パスワード（8文字以上）</label>
+        <input type="password" name="password" required minlength="8">
 
-    <button type="submit" class="btn-primary" style="padding:12px;">登録完了</button>
-  </form>
-</main>
-</body>
-</html>
+        <button type="submit" class="btn-primary" style="width:100%;">登録完了</button>
+    </form>
+
+    <a href="/login" class="link">← ログインに戻る</a>
+</div>
+{% endblock %}

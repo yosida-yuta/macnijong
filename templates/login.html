@@ -1,39 +1,35 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Macni雀 - ログイン</title>
-  <link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body>
-  <div class="container">
+{% extends "base.html" %}
+{% block title %}ログイン - Macni雀{% endblock %}
+
+{% block content %}
+<div class="container">
     <h1>Macni雀</h1>
     <h2>ログイン</h2>
 
     {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <p class="success">{{ messages[0] }}</p>
-      {% endif %}
+        {% if messages %}
+            <p class="success">{{ messages[0] }}</p>
+        {% endif %}
     {% endwith %}
 
     {% if error %}
-      <p class="error">{{ error }}</p>
+        <p class="error">{{ error }}</p>
     {% endif %}
 
-    <form method="POST">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>社員番号</label>
-      <input type="text" name="employee_number" value="{{ request.form.get('employee_number', '') }}" required>
+    <form method="POST" action="{{ url_for('login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-      <label>パスワード</label>
-      <input type="password" name="password" required>
+        <label>社員番号</label>
+        <input type="text" name="employee_number" required
+               value="{{ request.form.get('employee_number', '') }}">
 
-      <button type="submit">ログイン</button>
+        <label>パスワード</label>
+        <input type="password" name="password" required>
+
+        <button type="submit" class="btn-primary" style="width:100%;">ログイン</button>
     </form>
 
-    <a href="/register" class="link">アカウント新規作成はこちら</a>
-    <a href="/password/reset" class="link">パスワードを忘れた場合はこちら</a>
-  </div>
-</body>
-</html>
+    <a href="/register" class="link">📝 アカウント新規作成はこちら</a>
+    <a href="/password/reset" class="link">🔑 パスワードを忘れた場合はこちら</a>
+</div>
+{% endblock %}

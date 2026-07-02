@@ -1,45 +1,36 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>アカウント登録 - Macni雀</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-<header class="header">
-  <a href="{{ url_for('login') }}" class="back-link">← ログイン</a>
-  <h1 class="app-title">Macni雀</h1>
-</header>
+{% extends "base.html" %}
+{% block title %}アカウント登録 - Macni雀{% endblock %}
 
-<main class="main-container">
-  <h2 class="page-title">アカウント登録</h2>
+{% block content %}
+<div class="container">
+    <h1>アカウント登録</h1>
+    <h2>社員メールアドレスで認証</h2>
 
-  {% if sent %}
-    <div style="padding:16px; background:#e8f5e9; border-radius:8px; margin-bottom:16px;">
-      📧 認証メールを送信しました。<br>
-      メール内のリンクから登録を完了してください（15分以内）。
-    </div>
-  {% else %}
-    {% if error %}
-      <div style="padding:12px; background:#ffebee; color:#c62828; border-radius:6px; margin-bottom:12px;">
-        {{ error }}
-      </div>
+    {% if sent %}
+        <p class="success">
+            📧 認証メールを送信しました。<br>
+            メール内のリンクから登録を完了してください（15分以内）。
+        </p>
+    {% else %}
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+
+        {{ url_for('register') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <label>社員メールアドレス</label>
+            <input type="email" name="email" required
+                   placeholder="you@macnica.co.jp / you@pn.macnica.co.jp">
+
+            <button type="submit" class="btn-primary" style="width:100%;">認証メールを送信</button>
+        </form>
+
+        <p style="text-align:center; font-size:12px; color: var(--text-mute); margin-top:10px;">
+            ※ 認証メール内のリンクは 15分で無効になります。
+        </p>
     {% endif %}
 
-    <form method="POST" class="date-section" style="display:flex; flex-direction:column; gap:12px;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>社員メールアドレス</label>
-      <input type="email" name="email" required
-             placeholder="you@macnica.co.jp / you@pn.macnica.co.jp"
-             style="padding:10px; font-size:16px;">
-      <button type="submit" class="btn-primary" style="padding:12px;">認証メールを送信</button>
-    </form>
-
-    <p style="font-size:12px; color:#666; margin-top:12px;">
-      ※ 認証メール内のリンクは 15分で無効になります。
-    </p>
-  {% endif %}
-</main>
-</body>
-</html>
+    <a href="/login" class="link">← ログインに戻る</a>
+</div>
+{% endblock %}
