@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>社内レート - Macni雀</title>
+    {{ url_for('static', filename='css/style.css') }}
+    <style>
+        .leaderboard-wrap {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 0 16px;
+        }
+        .page-title {
+            color: #1B3F80;
+            border-left: 4px solid #1B3F80;
+            padding-left: 12px;
+            margin-bottom: 20px;
+        }
+        .top3-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .top3-card {
+            border-radius: 12px;
+            padding: 20px 10px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            background: linear-gradient(180deg, #FFFFFF 0%, #f6f6f6 100%);
+            border: 2px solid #ccc;
+        }
+        .top3-card.rank-1 { border-color: #d4af37; background: linear-gradient(180deg, #fff8dc 0%, #f5e9a1 100%); }
+        .top3-card.rank-2 { border-color: #b0b0b0; background: linear-gradient(180deg, #f5f5f5 0%, #dcdcdc 100%); }
+        .top3-card.rank-3 { border-color: #cd7f32; background: linear-gradient(180deg, #fce4d6 0%, #efc09d 100%); }
+        .medal {
+            font-size: 36px;
+        }
+        .top3-name {
+            font-size: 15px;
+            font-weight: bold;
+            margin: 4px 0;
+        }
+        .top3-rating {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1B3F80;
+        }
+        .top3-title-badge {
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+
+        .rank-list {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .rank-row {
+            display: grid;
+            grid-template-columns: 60px 1fr 100px 90px;
+            padding: 12px 14px;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+        }
+        .rank-row.me {
+            background: #fff8dc;
+            border-left: 4px solid #d4af37;
+            font-weight: bold;
+        }
+        .rank-index {
+            color: #4E6AA4;
+            font-weight: bold;
+        }
+        .rank-user {
+            font-weight: bold;
+            color: #1B3F80;
+        }
+        .rank-user small { color: #666; font-weight: normal; }
+        .rank-title {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .rank-rating {
+            text-align: right;
+            font-weight: bold;
+            font-size: 18px;
+            color: #1B3F80;
+        }
+
+        .empty-msg {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        @media (max-width: 600px) {
+            .top3-grid {
+                grid-template-columns: 1fr;
+            }
+            .rank-row {
+                grid-template-columns: 40px 1fr 80px 70px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    {{ url_for('menu') }}
+    <h1 class="app-title">🀄 Macni雀</h1>
+    <span class="nickname">{{ nickname }}</span>
+</div>
+
+<div class="leaderboard-wrap">
+    <h2 class="page-title">🏆 社内レート ランキング</h2>
+
+    {% if ranking and ranking|length > 0 %}
+        {# TOP3 #}
+        <div class="top3-grid">
+            {% for r in ranking[:3] %}
+                <div class="top3-card rank-{{ r.rank }}">
+                    <div class="medal">
+                        {% if r.rank == 1 %}🥇{% elif r.rank == 2 %}🥈{% elif r.rank == 3 %}🥉{% endif %}
+                    </div>
+                    <div class="top3-name">{{ r.nickname }}</div>
+                    <div class="top3-rating">{{ r.rating }}</div>
+                    <div>
+                        <span class="top3-title-badge" style="background: {{ r.title.color }};">
+                            🀄 {{ r.title.name }}
+                        </span>
+                    </div>
+                    <div style="font-size:12px; color:#666; margin-top:4px;">
+                        {{ r.games }}戦 / 勝率 {{ r.win_rate }}%
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        {# 4位以下 #}
+        <div class="rank-list">
+            {% for r in ranking[3:] %}
+                <div class="rank-row {% if r.is_me %}me{% endif %}">
+                    <div class="rank-index">{{ r.rank }}位</div>
+                    <div class="rank-user">
+                        {{ r.nickname }}
+                        <br><small>{{ r.games }}戦 / 勝率 {{ r.win_rate }}%</small>
+                    </div>
+                    <div>
+                        <span class="rank-title" style="background: {{ r.title.color }};">
+                            🀄 {{ r.title.name }}
+                        </span>
+                    </div>
+                    <div class="rank-rating">{{ r.rating }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-msg">まだランキング対象のプレイヤーがいません。</div>
+    {% endif %}
+</div>
+
+</body>
+</html>

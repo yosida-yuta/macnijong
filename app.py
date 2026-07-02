@@ -86,6 +86,25 @@ def get_db():
         cursorclass=pymysql.cursors.DictCursor,
     )
 
+# ============================================
+# 称号システム
+# ============================================
+TITLE_TABLE = [
+    (2100, "雀聖", "#d4af37"),   # 金
+    (1900, "雀豪", "#b284be"),   # 紫
+    (1700, "雀傑", "#4E6AA4"),   # 青
+    (1500, "上級雀士", "#2E7D32"), # 緑
+    (1300, "雀士", "#666666"),    # グレー
+    (0,   "雀士見習", "#999999"), # 淡いグレー
+]
+
+def get_title_by_rating(rating: int) -> dict:
+    """レートから称号を判定して返す"""
+    for min_r, name, color in TITLE_TABLE:
+        if rating >= min_r:
+            return {"name": name, "color": color, "min_rating": min_r}
+    return {"name": "雀士見習", "color": "#999999", "min_rating": 0}
+
 def is_admin_user() -> bool:
     """
     現在のログインユーザーが管理者かどうかを判定
@@ -1651,10 +1670,14 @@ def profile():
     rating_row = cursor.fetchone()
 
     rating_info = {
+        
         "rating": 1500, "games": 0, "win": 0, "lose": 0,
         "win_rate": 0, "rank": None, "total_users": 0,
+        "title": get_title_by_rating(1500),
+
     }
     if rating_row:
+        rating_info["title"] = get_title_by_rating(rating_info["rating"])
         rating_info["rating"] = int(rating_row["rating"])
         rating_info["games"] = int(rating_row["games"])
         rating_info["win"]   = int(rating_row["win"])
@@ -1702,6 +1725,54 @@ def admin_audit():
     logs = cursor.fetchall()
     cursor.close(); conn.close()
     return render_template("admin_audit.html", logs=logs)
+
+# ============================================
+# 社内レートランキング
+# ============================================
+@app.route("/leaderboard")
+def leaderboard():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT ur.user_id, ur.rating, ur.games, ur.win, ur.lose,
+               u.nickname, u.employee_number
+        FROM user_ratings ur
+        JOIN users u ON ur.user_id = u.id
+        WHERE ur.games > 0
+        ORDER BY ur.rating DESC
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    ranked = []
+    for idx, r in enumerate(rows, start=1):
+        title = get_title_by_rating(r["rating"])
+        win_rate = round(r["win"] / r["games"] * 100) if r["games"] > 0 else 0
+        ranked.append({
+            "rank": idx,
+            "user_id": r["user_id"],
+            "nickname": r["nickname"],
+            "employee_number": r["employee_number"],
+            "rating": r["rating"],
+            "games": r["games"],
+            "win": r["win"],
+            "lose": r["lose"],
+            "win_rate": win_rate,
+            "title": title,
+            "is_me": r["user_id"] == session["user_id"],
+        })
+
+    return render_template(
+        "leaderboard.html",
+        nickname=session.get("nickname"),
+        ranking=ranked
+    )
+
 
 # ============================================
 # 起動
