@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Macni雀{% endblock %}</title>
+<link rel="stylesheet" href="/static/css/style.css">
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<header class="header">
+    {% if request.endpoint != 'login' and request.endpoint != 'register' %}
+        <a href="/menu" class="back-link">← メニュー</a>
+    {% else %}
+        <span></span>
+    {% endif %}
+    <h1 class="app-title">Macni雀</h1>
+    {% if session.get('user_id') %}
+        <a href="/profile" class="nickname-link">👤 {{ session.get('nickname') }}</a>
+    {% else %}
+        <span></span>
+    {% endif %}
+</header>
+
+<main>
+    {% block content %}{% endblock %}
+</main>
+
+{% block extra_script %}{% endblock %}
+
+</body>
+</html>
